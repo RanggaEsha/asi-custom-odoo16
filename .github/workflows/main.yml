@@ -1,15 +1,21 @@
-name: Deploy to Server
+name: 🚀 Deploy to Odoo Server
 
 on:
   push:
     branches:
-      - main
+      - main  # adjust this to your branch name
 
 jobs:
   deploy:
+    name: Deploy to server via SSH
     runs-on: ubuntu-latest
+    environment: odoo-asi
+
     steps:
-      - name: SSH & Pull Code
+      - name: 📦 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🔐 Deploy via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -17,5 +23,9 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd /opt/odoo16/odoo16/custom/asi-custom-odoo16
+            git reset --hard HEAD
+            git clean -fd
             git pull origin main
-            supervisorctl restart odoo16
+            echo "✅ Code pulled at $(date)" >> ~/deploy.log
+            # Uncomment if using supervisor
+            # sudo supervisorctl restart odoo16
