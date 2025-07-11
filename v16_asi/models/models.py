@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# Test comment to verify git change detection
 
 from num2words import num2words
 from collections import defaultdict
@@ -224,6 +225,7 @@ class PurchaseRequest(models.Model):
     approver1_id = fields.Many2one('res.users', 'Approver 1')
     approver2_id = fields.Many2one('res.users', 'Approver 2')
     approver3_id = fields.Many2one('res.users', 'Approver 3')
+    is_required_seleksi = fields.Boolean(compute='_get_seleksi', string='Required Seleksi')
     
     purchase_flow = fields.Selection([('Create PO','Create PO'),('Direct to Finance','Direct to Finance')]
         , default='Create PO', string='Flow Purchasing')
