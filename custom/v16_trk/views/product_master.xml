@@ -1,0 +1,60 @@
+<odoo>
+  <data>        
+    
+   <!--  _name = 'trk.valve.tag'
+    _name = 'trk.datasheet'
+    _name = 'trk.body.construction'
+    _name = 'trk.type.design'
+    _name = 'trk.seat.design'
+    _name = 'trk.size'
+    _name = 'trk.rating'
+    _name = 'trk.bore'
+    _name = 'trk.end.con'
+    _name = 'trk.body'
+    _name = 'trk.ball'
+    _name = 'trk.seat'
+    _name = 'trk.seat.insert'
+    _name = 'trk.stem'
+    _name = 'trk.seal'
+    _name = 'trk.bolt'
+    _name = 'trk.disc'
+    _name = 'trk.shaft'
+    _name = 'trk.arm.pin'
+    _name = 'trk.backseat'
+    _name = 'trk.plates'
+    _name = 'trk.spring'
+    _name = 'trk.arm'
+    _name = 'trk.hinge.pin'
+    _name = 'trk.stop.pin'
+    _name = 'trk.operator' -->
+        <!-- Valve Tag -->      
+        <record id="trk_valve_tag_tree" model="ir.ui.view">
+            <field name="name">Valve Tag</field>
+            <field name="model">trk.valve.tag</field>
+            <field name="arch" type="xml">
+                <tree editable="bottom">
+                    <field name="code"/>
+                    <field name="name"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="trk_valve_type_component_action" model="ir.actions.act_window">
+            <field name="name">Valve Type Component</field>
+            <field name="res_model">trk.valve.type.component</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="oe_view_nocontent_create">
+                    Click to create Document
+                </p>                
+            </field>
+        </record>
+
+        <menuitem id="trk_valve_type_component_menu" 
+            name="Valve Type Component" 
+            sequence="101"
+            parent="sale.product_menu_catalog"
+            action="trk_valve_type_component_action"/>
+
+  </data>
+</odoo>

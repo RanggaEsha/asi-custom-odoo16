@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<odoo>
+    <data>
+        <record model='ir.ui.view' id='rekap_wizard_form'>
+            <field name="name">wizard.rekap.report.form</field>
+            <field name="model">wizard.rekap.report</field>
+            <field name="arch" type="xml">
+                <form string="Wizard">
+                    <group>                        
+                        <field name="partner_id" 
+                            domain="[('customer_rank', '>', 1)]"/>
+                        <field name="start_date"/>
+                        <field name="end_date"/>
+                    </group>                        
+                    <footer>
+                        <button name="export_xls" type="object" default_focus="1"
+                            string="Print Report" class="oe_highlight"
+                            context="{'xls_export':1}" icon="fa-download"/>
+                        <button string="Cancel" class="oe_link" special="cancel" />
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <record model='ir.actions.act_window' id='rekap_wizard_action'>
+            <field name="name">Laporan Rekap Excel</field>
+            <field name="res_model">wizard.rekap.report</field>
+            <field name="view_mode">form</field>
+            <field name="target">new</field>
+        </record>
+
+        <report
+            id="rekap_xlsx"
+            model="wizard.rekap.report"
+            string="Laporan Rekap Excel"
+            report_type="xlsx"
+            name="v14_print.rekap_report_xls.xlsx"
+            file="v14_print.rekap_report_xls.xlsx"
+            menu="False"
+            attachment_use="False"/>
+
+        <menuitem name="Laporan Rekap Excel"
+            parent="sale.sale_order_menu"
+            id="menu_rekap_excel"
+            action="v14_print.rekap_wizard_action"
+            sequence="999"/>
+
+    </data>
+</odoo>

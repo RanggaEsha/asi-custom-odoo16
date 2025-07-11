@@ -1,0 +1,10 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_gatrans_consignment_user,access_gatrans_consignment_user,model_gatrans_consignment,base.group_user,1,1,1,1
+access_gatrans_consignment_line_user,access_gatrans_consignment_line_user,model_gatrans_consignment_line,base.group_user,1,1,1,1
+access_gatrans_airline,access_gatrans_airline,model_gatrans_airline,base.group_user,1,1,1,1
+access_gatrans_destination,access_gatrans_destination,model_gatrans_destination,base.group_user,1,1,1,1
+access_gatrans_flight,access_gatrans_flight,model_gatrans_flight,base.group_user,1,1,1,1
+access_gatrans_driver,access_gatrans_driver,model_gatrans_driver,base.group_user,1,1,1,1
+access_gatrans_label,access_gatrans_label,model_gatrans_label,base.group_user,1,1,1,1
+access_gatrans_seal,access_gatrans_seal,model_gatrans_seal,base.group_user,1,1,1,1
+access_gatrans_method,access_gatrans_method,model_gatrans_method,base.group_user,1,1,1,1

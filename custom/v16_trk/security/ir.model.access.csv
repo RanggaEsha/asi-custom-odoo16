@@ -1,0 +1,15 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_trk_valve_type,access_trk_valve_type,model_trk_valve_type,base.group_user,1,1,1,1
+access_trk_valve_type_component,access_trk_valve_type_component,model_trk_valve_type_component,base.group_user,1,1,1,1
+access_trk_request_sale,access_trk_request_sale,model_trk_request_sale,base.group_user,1,1,1,1
+access_trk_branch,access_trk_branch,model_trk_branch,base.group_user,1,1,1,1
+access_trk_project,access_trk_project,model_trk_project,base.group_user,1,1,1,1
+access_trk_ship,access_trk_ship,model_trk_ship,base.group_user,1,1,1,1
+access_trk_delivery_term,access_trk_delivery_term,model_trk_delivery_term,base.group_user,1,1,1,1
+access_trk_quotation,access_trk_quotation,model_trk_quotation,base.group_user,1,1,1,1
+access_trk_quotation_line,access_trk_quotation_line,model_trk_quotation_line,base.group_user,1,1,1,1
+access_trk_customer_purchase,access_trk_customer_purchase,model_trk_customer_purchase,base.group_user,1,1,1,1
+access_trk_customer_purchase_line,access_trk_customer_purchase_line,model_trk_customer_purchase_line,base.group_user,1,1,1,1
+access_trk_blanket_order,access_trk_blanket_order,model_trk_blanket_order,base.group_user,1,1,1,1
+access_trk_blanket_order_line,access_trk_blanket_order_line,model_trk_blanket_order_line,base.group_user,1,1,1,1
+access_trk_blanket_order_sale,access_trk_blanket_order_sale,model_trk_blanket_order_sale,base.group_user,1,1,1,1

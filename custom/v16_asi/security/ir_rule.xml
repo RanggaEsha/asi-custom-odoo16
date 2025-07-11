@@ -1,0 +1,62 @@
+<odoo>
+	<data>
+
+		<record model="ir.module.category" id="module_category_product_asi">
+            <field name="name">Custom Groups (Products)</field>            
+            <field name="sequence">100</field>
+        </record>
+
+	        <record id="group_asi_product_it" model="res.groups">
+		        <field name="name">Products (IT)</field>
+		        <field name="category_id" ref="v16_asi.module_category_product_asi"/>	        
+		    </record>
+
+		    <record id="group_asi_product_facility" model="res.groups">
+		        <field name="name">Products (Facility)</field>
+		        <field name="category_id" ref="v16_asi.module_category_product_asi"/>	        
+		    </record>
+
+		    <record id="group_asi_product_all" model="res.groups">
+		        <field name="name">Products (All)</field>
+		        <field name="category_id" ref="v16_asi.module_category_product_asi"/>	        
+		    </record>
+
+		<record model="ir.module.category" id="module_category_internal_transfer_asi">
+            <field name="name">Custom Groups (Internal Transfer)</field>            
+            <field name="sequence">100</field>
+        </record>
+
+        	<record id="group_asi_internal_transfer_it" model="res.groups">
+		        <field name="name">Intenal Transfer (IT)</field>
+		        <field name="category_id" ref="v16_asi.module_category_internal_transfer_asi"/>	        
+		    </record>
+
+		    <record id="group_asi_internal_transfer_facility" model="res.groups">
+		        <field name="name">Intenal Transfer (Facility)</field>
+		        <field name="category_id" ref="v16_asi.module_category_internal_transfer_asi"/>	        
+		    </record>
+
+		    <record id="group_asi_internal_transfer_all" model="res.groups">
+		        <field name="name">Intenal Transfer (All)</field>
+		        <field name="category_id" ref="v16_asi.module_category_internal_transfer_asi"/>	        
+		    </record>
+
+		<record model="ir.module.category" id="module_category_other_asi">
+            <field name="name">Custom Groups (Other)</field>            
+            <field name="sequence">100</field>
+        </record>
+
+		    <record id="group_asi_purchase_request" model="res.groups">
+		        <field name="name">Purchase Request)</field>
+		        <field name="category_id" ref="v16_asi.module_category_other_asi"/>	        
+		    </record>
+
+		    <record id="group_asi_inventory_basic" model="res.groups">
+		        <field name="name">Basic Inventory</field>
+		        <field name="category_id" ref="v16_asi.module_category_other_asi"/>	        
+		    </record>
+
+	    
+
+	</data>
+</odoo>

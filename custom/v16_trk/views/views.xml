@@ -1,0 +1,788 @@
+<odoo>
+  <data>
+
+        <!-- Inherit Purchase Order -->
+        <record id="purchase_order_form_trk" model="ir.ui.view">
+            <field name="name">purchase.order</field>
+            <field name="model">purchase.order</field>
+            <field name="inherit_id" ref="purchase.purchase_order_form"/>
+            <field name="arch" type="xml">
+                <field name="price_unit" position="after">
+                    <field name="discount"/>
+                </field>
+            </field>
+        </record>
+
+        <!-- Inherit Product Template -->
+        <record id="product_template_only_form_view_trk" model="ir.ui.view">
+            <field name="name">product.template</field>
+            <field name="model">product.template</field>
+            <field name="inherit_id" ref="product.product_template_only_form_view"/>
+            <field name="arch" type="xml">
+                <field name="detailed_type" position="after">
+                    <field name="valve_type_id"/>
+                    <field name="end_user_id"/>
+                </field>
+            </field>
+        </record>
+
+        <!-- Inherit Sales Order -->
+        <record id="view_order_form_trk" model="ir.ui.view">
+            <field name="name">sale.order</field>
+            <field name="model">sale.order</field>
+            <field name="inherit_id" ref="sale.view_order_form"/>
+            <field name="arch" type="xml">
+                <field name="product_template_id" position="replace">
+                    <field name="product_template_id" 
+                        domain="[('sale_ok', '=', True), '|', ('company_id', '=', False), ('company_id', '=', parent.company_id)]" 
+                        context="{'partner_id':parent.partner_id, 'quantity':product_uom_qty, 'pricelist':parent.pricelist_id, 'uom':product_uom, 'company_id': parent.company_id}" 
+                        attrs="{'readonly': [('product_updatable', '=',False)]}" 
+                        required="0" force_save="1" widget="many2one_barcode"/>
+                </field>
+            </field>
+        </record>
+
+        <!-- Inherit Partner -->
+        <record id="view_partner_form_trk" model="ir.ui.view">
+            <field name="name">res.partner</field>
+            <field name="model">res.partner</field>
+            <field name="inherit_id" ref="base.view_partner_form"/>
+            <field name="arch" type="xml">
+                <field name="vat" position="after">
+                    <field name="is_customer"/>
+                    <field name="is_end_user"/>
+                </field>
+            </field>
+        </record>
+
+        <!-- Blanket Order -->      
+        <record id="trk_blanket_order_tree" model="ir.ui.view">
+            <field name="name">Blanket Order</field>
+            <field name="model">trk.blanket.order</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name="name"/>
+                    <field name="date"/>
+                    <field name="branch_id"/>
+                    <field name="partner_id"/>
+                    <field name="end_user_id"/>
+                    <field name="user_id"/>
+                    <field name="project_id"/>   
+                    <field name="customer_purchase_id"/>
+                    <field name="state"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="trk_blanket_order_form" model="ir.ui.view">
+            <field name="name">Blanket Order</field>
+            <field name="model">trk.blanket.order</field>
+            <field name="arch" type="xml">
+                <form>
+                    <header>
+                        <button name="action_sales_order" string="Create Sales Order" type="object" states="Open"/>
+                        <button name="action_close" string="Close Blanket Order" type="object" states="Open"/>
+                        <field name="state" readonly="1" widget="statusbar"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" readonly="1"/>
+                            </h1>
+                        </div>
+                        <group>
+                            <group>
+                                <field name="date"
+                                    attrs="{'readonly': [('state', '!=', 'Open')]}"/>
+                                <field name="branch_id"
+                                    attrs="{'readonly': [('state', '!=', 'Open')]}"/>
+                                <field name="partner_id"
+                                    attrs="{'readonly': [('state', '!=', 'Open')]}"/>
+                                <field name="end_user_id"
+                                    attrs="{'readonly': [('state', '!=', 'Open')]}"/>
+                            </group>
+                            <group>
+                                <field name="user_id"
+                                    attrs="{'readonly': [('state', '!=', 'Open')]}"/>
+                                <field name="project_id"
+                                    attrs="{'readonly': [('state', '!=', 'Open')]}"/>
+                                <field name="customer_purchase_id"
+                                    attrs="{'readonly': [('state', '!=', 'Open')]}"/>
+                            </group>
+                        </group>
+                        <notebook>
+                            <page name="customer_purchase_lines" string="Products">
+                                <field name="line_ids"
+                                    attrs="{'readonly': [('state', '!=', 'Open')]}">
+                                    <tree editable="top">
+                                        <field name="quotation_id"/>
+                                        <field name="product_id"/>
+                                        <field name="product_uom_qty"/>
+                                        <field name="price_unit"/>
+                                        <field name="valve_type_id"/>
+                                        <field name="remarks"/>
+                                    </tree>
+                                </field>
+                            </page>
+                            <page name="customer_purchase_lines" string="Sales Orders">
+                                <field name="sale_ids" readonly="1">
+                                    <tree editable="top">
+                                        <field name="order_id"/>
+                                        <field name="date"/>
+                                    </tree>
+                                </field>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids" widget="mail_followers" />
+                        <field name="activity_ids" widget="mail_activity" />
+                        <field name="message_ids" widget="mail_thread" />
+                    </div>
+                </form>
+            </field>
+        </record>
+
+        <record id="trk_blanket_order_action" model="ir.actions.act_window">
+            <field name="name">Blanket Order</field>
+            <field name="res_model">trk.blanket.order</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="oe_view_nocontent_create">
+                    Click to create Document
+                </p>                
+            </field>
+        </record>
+
+        <menuitem id="trk_blanket_order_menu" 
+            name="Blanket Order" 
+            sequence="4"
+            parent="sale.sale_order_menu"
+            action="trk_blanket_order_action"/>
+
+        <!-- Customer PO No. -->      
+        <record id="trk_customer_purchase_tree" model="ir.ui.view">
+            <field name="name">Customer PO No.</field>
+            <field name="model">trk.customer.purchase</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name="name"/>
+                    <field name="date"/>
+                    <field name="branch_id"/>
+                    <field name="partner_id"/>
+                    <field name="end_user_id"/>
+                    <field name="user_id"/>
+                    <field name="project_id"/>
+                    <field name="ref_no"/>
+                    <field name="state"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="trk_customer_purchase_form" model="ir.ui.view">
+            <field name="name">Customer PO No.</field>
+            <field name="model">trk.customer.purchase</field>
+            <field name="arch" type="xml">
+                <form>
+                    <header>
+                        <button name="action_sales_order" string="Create Sales Order" type="object" states="Pending"/>
+                        <button name="action_blanket_order" string="Create Blanket Order" type="object" states="Pending"/>
+                        <field name="state" readonly="1" widget="statusbar"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" readonly="1"/>
+                            </h1>
+                        </div>
+                        <group>
+                            <group>
+                                <field name="date"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="branch_id"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="partner_id"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="end_user_id"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                            </group>
+                            <group>
+                                <field name="user_id"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="project_id"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="ref_no"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="order_id" readonly="1"
+                                    attrs="{'invisible': [('state', '!=', 'Sales Order')]}"/>
+                                <field name="blanket_id" readonly="1"
+                                    attrs="{'invisible': [('state', '!=', 'Blanket Order')]}"/>
+                            </group>
+                        </group>
+                        <notebook>
+                            <page name="customer_purchase_lines" string="Products">
+                                <group>
+                                    <button name="action_reload_product" type="object" string="Reload"/>
+                                </group>
+                                <field name="line_ids"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}">
+                                    <tree editable="top">
+                                        <field name="sequence"/>
+                                        <field name="quotation_id"/>
+                                        <field name="product_id"/>
+                                        <field name="product_uom_qty"/>
+                                        <field name="price_unit"/>
+                                        <field name="valve_type_id"/>
+                                    </tree>
+                                </field>
+                                <group class="oe_subtotal_footer oe_right">
+                                    <field
+                                        name="amount_total"
+                                        widget="monetary"
+                                        options="{'currency_field': 'currency_id'}"/>
+                                </group>
+                            </page>
+                            <page name="quotation_list" string="Sales Quotation">
+                                <field name="quotation_ids" 
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"
+                                    domain="[('partner_id', '=', partner_id)]">
+                                    <tree editable="top">
+                                        <field name="name"/>
+                                        <field name="date"/>
+                                        <field name="partner_id"/>
+                                        <field name="end_user_id"/>
+                                    </tree>
+                                </field>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids" widget="mail_followers" />
+                        <field name="activity_ids" widget="mail_activity" />
+                        <field name="message_ids" widget="mail_thread" />
+                    </div>
+                </form>
+            </field>
+        </record>
+
+        <record id="trk_customer_purchase_action" model="ir.actions.act_window">
+            <field name="name">Customer PO No.</field>
+            <field name="res_model">trk.customer.purchase</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="oe_view_nocontent_create">
+                    Click to create Document
+                </p>                
+            </field>
+        </record>
+
+        <menuitem id="trk_customer_purchase_menu" 
+            name="Customer PO No." 
+            sequence="3"
+            parent="sale.sale_order_menu"
+            action="trk_customer_purchase_action"/>
+
+        <!-- Quotation -->      
+        <record id="trk_quotation_tree" model="ir.ui.view">
+            <field name="name">Sales Quotation</field>
+            <field name="model">trk.quotation</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name="name"/>
+                    <field name="date"/>
+                    <field name="request_id"/>
+                    <field name="project_id" optional="hide"/>
+                    <field name="subject" optional="hide"/>
+                    <field name="currency_id" optional="hide"/>
+                    <field name="partner_id"/>
+                    <field name="end_user_id"/>
+                    <field name="attn"/>
+                    <field name="user_id"/>
+                    <field name="ship_id" optional="hide"/>
+                    <field name="delivery_term_id" optional="hide"/>
+                    <field name="state"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="trk_quotation_form" model="ir.ui.view">
+            <field name="name">Sales Quotation</field>
+            <field name="model">trk.quotation</field>
+            <field name="arch" type="xml">
+                <form>
+                    <header>
+                        <button name="action_approve" string="Approve" type="object" states="Pending"/>
+                        <button name="action_decline" string="Decline" type="object" states="Pending"/>
+                        <field name="state" readonly="1" widget="statusbar"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" readonly="1"/>
+                            </h1>
+                        </div>
+                        <group>
+                            <group name="order_details">
+                                <field name="request_id"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"
+                                    domain="[('state', '=', 'Approved')]"/>
+                                <field name="date"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="project_id"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="subject"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="currency_id"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="partner_id"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="end_user_id"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="attn"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                            </group>
+                            <group name="order_details2">
+                                <field name="user_id"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="ship_id"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="delivery_term_id"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="price_validity"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="packing"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="tagging"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="warranty"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="ref_no"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="certificate_documentation"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                            </group>
+                            <group>
+                                <field name="testing"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="inspection"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="painting"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="payment"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                                <field name="remarks"
+                                    attrs="{'readonly': [('state', '!=', 'Pending')]}"/>
+                            </group>
+                        </group>
+                        <notebook>
+                            <page string="Valve Type">
+                                <field name="line_ids">
+                                    <tree>
+                                        <field name="valve_type_id" class="oe_inline"/>
+                                        <field name="valve_tag"/>
+                                        <field name="datasheet"/>
+                                        <field name="description"/>
+                                        <field name="body_construction"/>
+                                        <field name="type_design"/>
+                                        <field name="product_uom_qty"/>
+                                        <field name="price_unit"/>
+                                        <field name="price_subtotal"/>
+                                    </tree>
+                                    <form>
+                                        <sheet>
+                                            <group>
+                                                <field name="valve_type_id" class="oe_inline"/>
+                                                <field name="product_uom_qty" class="oe_inline"/>
+                                                <field name="price_unit" class="oe_inline"/>
+                                            </group>
+                                            <group>
+                                                <group>
+                                                    <field name="valve_tag"/>
+                                                    <field name="datasheet"/>
+                                                    <field name="description"/>
+                                                    <field name="body_construction"/>
+                                                    <field name="type_design"/>
+                                                    <field name="seat_design"/>
+                                                    <field name="size"/>
+                                                    <field name="rating"/>
+                                                    <field name="bore"/>
+                                                </group>
+                                                <group>
+                                                    <field name="end_con"/>
+                                                    <field name="body"/>
+                                                    <field name="ball"/>
+                                                    <field name="seat"/>
+                                                    <field name="seat_insert"/>
+                                                    <field name="stem"/>
+                                                    <field name="seal"/>
+                                                    <field name="bolt"/>
+                                                    <field name="disc"
+                                                        attrs="{'invisible': [('valve_type_id', '=', 1)]}"/>
+                                                </group>
+                                                <group>
+                                                    <field name="shaft"
+                                                        attrs="{'invisible': [('valve_type_id', '=', 1)]}"/>
+                                                    <field name="arm_pin"
+                                                        attrs="{'invisible': [('valve_type_id', '=', 1)]}"/>
+                                                    <field name="backseat"
+                                                        attrs="{'invisible': [('valve_type_id', '=', 1)]}"/>
+                                                    <field name="plates"
+                                                        attrs="{'invisible': [('valve_type_id', '=', 1)]}"/>
+                                                    <field name="spring"
+                                                        attrs="{'invisible': [('valve_type_id', '=', 1)]}"/>
+                                                    <field name="arm"
+                                                        attrs="{'invisible': [('valve_type_id', '=', 1)]}"/>
+                                                    <field name="hinge_pin"
+                                                        attrs="{'invisible': [('valve_type_id', '=', 1)]}"/>
+                                                    <field name="stop_pin"
+                                                        attrs="{'invisible': [('valve_type_id', '=', 1)]}"/>
+                                                    <field name="operator"/>
+                                                </group>
+                                            </group>
+                                        </sheet>
+                                    </form>
+                                </field>
+                                <group class="oe_subtotal_footer oe_right">
+                                    <field
+                                        name="amount_total"
+                                        widget="monetary"
+                                        options="{'currency_field': 'currency_id'}"/>
+                                </group>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids" widget="mail_followers" />
+                        <field name="activity_ids" widget="mail_activity" />
+                        <field name="message_ids" widget="mail_thread" />
+                    </div>
+                </form>
+            </field>
+        </record>
+
+        <record id="trk_quotation_action" model="ir.actions.act_window">
+            <field name="name">Sales Quotation</field>
+            <field name="res_model">trk.quotation</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="oe_view_nocontent_create">
+                    Click to create Document
+                </p>                
+            </field>
+        </record>
+
+        <menuitem id="trk_quotation_menu" 
+            name="Sales Quotation" 
+            sequence="1"
+            parent="sale.sale_order_menu"
+            action="trk_quotation_action"/>
+
+        <!-- RFQ -->      
+        <record id="trk_request_sale_tree" model="ir.ui.view">
+            <field name="name">Request for Quotation</field>
+            <field name="model">trk.request.sale</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name="name"/>
+                    <field name="ref_number"/>
+                    <field name="tender_number"/>
+                    <field name="order_status"/>
+                    <field name="branch_id"/>
+                    <field name="transaction_date"/>
+                    <field name="registered_date"/>
+                    <!-- <field name="review_status"/> -->
+                    <!-- <field name="bidding_date"/> -->
+                    <!-- <field name="factory_date"/> -->
+                    <!-- <field name="customer_date"/> -->
+                    <!-- <field name="scope"/> -->
+                    <!-- <field name="currency_id"/> -->
+                    <field name="partner_id"/>
+                    <field name="end_user_id"/>
+                    <!-- <field name="attn"/> -->
+                    <field name="user_id"/>
+                    <field name="project_id"/>
+                    <!-- <field name="subject"/> -->
+                    <!-- <field name="remarks"/> -->
+                    <field name="state"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="trk_request_sale_form" model="ir.ui.view">
+            <field name="name">Request for Quotation</field>
+            <field name="model">trk.request.sale</field>
+            <field name="arch" type="xml">
+                <form>
+                    <header>
+                        <button name="action_approve" string="Approve" type="object" states="Pending"/>
+                        <button name="action_decline" string="Decline" type="object" states="Pending"/>
+                        <field name="state" readonly="1" widget="statusbar"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" readonly="1"/>
+                            </h1>
+                        </div>
+                        <group>
+                            <group>
+                                <field name="ref_number"/>
+                                <field name="tender_number"/>
+                                <field name="order_status"/>
+                                <field name="branch_id"/>
+                                <field name="transaction_date"/>
+                                <field name="registered_date"/>
+                                <field name="review_status"/>
+                            </group>
+                            <group>
+                                <field name="bidding_date"/>
+                                <field name="factory_date"/>
+                                <field name="customer_date"/> 
+                                <field name="currency_id"/>
+                                <field name="user_id"/>
+                                <field name="scope"/>
+                            </group>
+                            <group>
+                                <field name="partner_id"/>
+                                <field name="end_user_id"/>
+                                <field name="attn"/>
+                                <field name="project_id"/>
+                                <field name="subject"/>
+                                <field name="remarks"/>
+                            </group>
+                        </group>
+                    </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids" widget="mail_followers" />
+                        <field name="activity_ids" widget="mail_activity" />
+                        <field name="message_ids" widget="mail_thread" />
+                    </div>
+                </form>
+            </field>
+        </record>
+
+        <record id="trk_request_sale_action" model="ir.actions.act_window">
+            <field name="name">Request for Quotation</field>
+            <field name="res_model">trk.request.sale</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="oe_view_nocontent_create">
+                    Click to create Document
+                </p>                
+            </field>
+        </record>
+
+        <menuitem id="trk_request_sale_menu" 
+            name="Request for Quotation" 
+            sequence="0"
+            parent="sale.sale_order_menu"
+            action="trk_request_sale_action"/>
+
+        <!-- Valve Type -->      
+        <record id="trk_valve_type_tree" model="ir.ui.view">
+            <field name="name">Valve Type</field>
+            <field name="model">trk.valve.type</field>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name="code"/>
+                    <field name="name"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="trk_valve_type_form" model="ir.ui.view">
+            <field name="name">Valve Type</field>
+            <field name="model">trk.valve.type</field>
+            <field name="arch" type="xml">
+                <form>
+                    <sheet>
+                        <group>
+                            <field name="code" class="oe_inline"/>
+                            <field name="name" class="oe_inline"/>
+                        </group>
+                        <notebook>
+                            <page string="Component">
+                                <field name="component_ids"
+                                    widget="section_and_note_one2many">
+                                    <tree editable="bottom">
+                                        <field name="code"/>
+                                        <field name="name"/>
+                                    </tree>
+                                </field>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <record id="trk_valve_type_action" model="ir.actions.act_window">
+            <field name="name">Valve Type</field>
+            <field name="res_model">trk.valve.type</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="oe_view_nocontent_create">
+                    Click to create Document
+                </p>                
+            </field>
+        </record>
+
+        <menuitem id="trk_valve_type_menu" 
+            name="Valve Type" 
+            sequence="100"
+            parent="sale.product_menu_catalog"
+            action="trk_valve_type_action"/>
+
+        <!-- Menu for TRK Master -->
+        <menuitem id="menu_trk_master" 
+            name="Master Data" 
+            sequence="10"
+            parent="sale.sale_menu_root"/>
+
+        <!-- Valve Type Component -->      
+        <record id="trk_valve_type_component_tree" model="ir.ui.view">
+            <field name="name">Valve Type Component</field>
+            <field name="model">trk.valve.type.component</field>
+            <field name="arch" type="xml">
+                <tree editable="bottom">
+                    <field name="code"/>
+                    <field name="name"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="trk_valve_type_component_action" model="ir.actions.act_window">
+            <field name="name">Valve Type Component</field>
+            <field name="res_model">trk.valve.type.component</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="oe_view_nocontent_create">
+                    Click to create Document
+                </p>                
+            </field>
+        </record>
+
+        <menuitem id="trk_valve_type_component_menu" 
+            name="Valve Type Component" 
+            sequence="101"
+            parent="sale.product_menu_catalog"
+            action="trk_valve_type_component_action"/>
+
+        <!-- Branch -->      
+        <record id="trk_branch_tree" model="ir.ui.view">
+            <field name="name">Branch</field>
+            <field name="model">trk.branch</field>
+            <field name="arch" type="xml">
+                <tree editable="bottom">
+                    <field name="code"/>
+                    <field name="name"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="trk_branch_action" model="ir.actions.act_window">
+            <field name="name">Branch</field>
+            <field name="res_model">trk.branch</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="oe_view_nocontent_create">
+                    Click to create Document
+                </p>                
+            </field>
+        </record>
+
+        <menuitem id="trk_branch_menu" 
+            name="Branch" 
+            sequence="0"
+            parent="v16_trk.menu_trk_master"
+            action="trk_branch_action"/>
+
+        <!-- Project -->      
+        <record id="trk_project_tree" model="ir.ui.view">
+            <field name="name">Project</field>
+            <field name="model">trk.project</field>
+            <field name="arch" type="xml">
+                <tree editable="bottom">
+                    <field name="code"/>
+                    <field name="name"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="trk_project_action" model="ir.actions.act_window">
+            <field name="name">Project</field>
+            <field name="res_model">trk.project</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="oe_view_nocontent_create">
+                    Click to create Document
+                </p>                
+            </field>
+        </record>
+
+        <menuitem id="trk_project_menu" 
+            name="Project" 
+            sequence="1"
+            parent="v16_trk.menu_trk_master"
+            action="trk_project_action"/>
+
+        <!-- Ship -->      
+        <record id="trk_ship_tree" model="ir.ui.view">
+            <field name="name">Ship</field>
+            <field name="model">trk.ship</field>
+            <field name="arch" type="xml">
+                <tree editable="bottom">
+                    <field name="code"/>
+                    <field name="name"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="trk_ship_action" model="ir.actions.act_window">
+            <field name="name">Ship</field>
+            <field name="res_model">trk.ship</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="oe_view_nocontent_create">
+                    Click to create Document
+                </p>                
+            </field>
+        </record>
+
+        <menuitem id="trk_ship_menu" 
+            name="Ship" 
+            sequence="2"
+            parent="v16_trk.menu_trk_master"
+            action="trk_ship_action"/>
+
+        <!-- Delivery Term -->      
+        <record id="trk_delivery_term_tree" model="ir.ui.view">
+            <field name="name">Delivery Term</field>
+            <field name="model">trk.delivery.term</field>
+            <field name="arch" type="xml">
+                <tree editable="bottom">
+                    <field name="code"/>
+                    <field name="name"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="trk_delivery_term_action" model="ir.actions.act_window">
+            <field name="name">Delivery Term</field>
+            <field name="res_model">trk.delivery.term</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="oe_view_nocontent_create">
+                    Click to create Document
+                </p>                
+            </field>
+        </record>
+
+        <menuitem id="trk_delivery_term_menu" 
+            name="Delivery Term" 
+            sequence="3"
+            parent="v16_trk.menu_trk_master"
+            action="trk_delivery_term_action"/>
+
+  </data>
+</odoo>

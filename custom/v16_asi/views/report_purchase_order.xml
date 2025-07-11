@@ -1,0 +1,414 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <template id="report_purchaseorder_document_asi" 
+            inherit_id="purchase.report_purchaseorder_document">
+            <t t-set="address" position="replace"/>
+            <t t-set="information_block" position="replace"/>
+            <div class="page" position="replace">
+                <div class="page">
+                    <table class="table table-condensed" style="border-color:white;">
+                        <tr>
+                            <td width="30%" 
+                                style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:14px;">
+                                <strong>To :</strong>
+                            </td>
+                            <td width="30%" 
+                                style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:14px;">
+                                <strong>Deliver and Bill To :</strong>
+                            </td>
+                            <td width="30%" rowspan="3"
+                                style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:36px;">
+                                <strong>Purchase Order</strong>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:14px;">
+                                <span t-field="o.partner_id.name"/>
+                            </td>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:14px;">
+                                PT. ANEKA SEARCH INDONESIA
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:14px;">
+                                <span t-field="o.partner_id.street"/>
+                            </td>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:14px;">
+                                Telp. (021) 2251 3371
+                            </td>
+                        </tr>
+                    </table>
+                    <table class="table table-condensed" style="border-color:white;">
+                        <tr>
+                            <td width="60%"
+                                style="text-align:left;vertical-align:middle;border:0px;padding:5px;font-size:14px;">
+                                Telp : <span t-field="o.partner_id.phone"/>
+                            </td>
+                            <td width="5%"
+                                style="text-align:left;vertical-align:middle;border:1px solid black;padding:5px;font-size:14px;">
+                                <strong>No.</strong> 
+                            </td>
+                            <td width="25%"
+                                style="text-align:left;vertical-align:middle;border:1px solid black;padding:5px;font-size:14px;">
+                                <span t-field="o.name"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:5px;font-size:14px;">
+                                Fax : <span t-field="o.partner_id.phone"/>
+                            </td>
+                            <td style="text-align:left;vertical-align:middle;border:1px solid black;padding:5px;font-size:14px;">
+                                <strong>Date</strong> 
+                            </td>
+                            <td style="text-align:left;vertical-align:middle;border:1px solid black;padding:5px;font-size:14px;">
+                                <span t-field="o.date_approve" t-options='{"format": "dd/MM/yyyy"}'/> 
+                            </td>
+                        </tr>
+                    </table>
+                    <table class="table table-condensed" style="border-color:white;">
+                        <tr>
+                            <td width="50%" rowspan="2" colspan="2"
+                                style="text-align:left;vertical-align:middle;border:0px;padding:2px;font-size:14px;">
+                                <strong>Attn : </strong> <span t-field="o.partner_id.name"/>
+                            </td>
+                            <td width="10%"
+                                style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:10px;">
+                            </td>
+                            <td width="30%"
+                                style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:10px;">
+                                NPWP No. 02.286.400.3-011.000 
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:10px;">
+                            </td>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:10px;">
+                                PT. Aneka Search Indonesia
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="25%" rowspan="2"
+                                style="text-align:center;vertical-align:middle;border:1px solid black;padding:2px;font-size:14px;">
+                                <strong>DELIVERY DATE</strong>
+                            </td>
+                            <td width="25%" rowspan="2"
+                                style="text-align:center;vertical-align:middle;border:1px solid black;padding:2px;font-size:14px;">
+                                <strong>PAYMENT DUE</strong>
+                            </td>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:10px;">
+                            </td>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:10px;">
+                                International Financial Centre (IFC) Tower 2 Lt. 33
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:10px;">
+                            </td>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:10px;">
+                                Jl. Jend. Sudirman Kav.22-23 RT.016 RW.001 
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="25%" rowspan="2"
+                                style="text-align:center;vertical-align:middle;border:1px solid black;padding:2px;font-size:14px;">
+                                <span t-field="o.request_id.expected_date" t-options='{"format": "dd/MM/yyyy"}'/>
+                            </td>
+                            <td width="25%" rowspan="2"
+                                style="text-align:center;vertical-align:middle;border:1px solid black;padding:2px;font-size:14px;">
+                                <span t-field="o.request_id.due_date" t-options='{"format": "dd/MM/yyyy"}'/>
+                            </td>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:10px;">
+                            </td>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:10px;">
+                                Karet Setiabudi Jakarta Selatan
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:10px;">
+                            </td>
+                            <td style="text-align:left;vertical-align:middle;border:0px;padding:0px;font-size:10px;">
+                                DKI Jakarta 12920
+                            </td>
+                        </tr>
+                    </table>
+                    <t t-if="o.is_service == False">
+                        <table class="table table-condensed">
+                            <tr>
+                                <td width="55%"
+                                    style="text-align:center;border:1px solid black;padding:5px;font-size:14px;">
+                                    <strong>DESCRIPTION</strong>
+                                </td>
+                                <td width="10%"
+                                    style="text-align:center;border:1px solid black;padding:5px;font-size:14px;">
+                                    <strong>QTY</strong>
+                                </td>
+                                <td width="20%"
+                                    style="text-align:center;border:1px solid black;padding:5px;font-size:14px;">
+                                    <strong>UNIT PRICE</strong> 
+                                </td>
+                                <td width="20%"
+                                    style="text-align:center;border:1px solid black;padding:5px;font-size:14px;">
+                                    <strong>AMOUNT</strong> 
+                                </td>
+                            </tr>
+                            <t t-foreach="o.order_line" t-as="line">
+                                <tr>
+                                    <td style="text-align:left;border:1px solid black;padding:5px;font-size:14px;">
+                                        <span t-field="line.name"/>
+                                    </td>
+                                    <td style="text-align:center;border:1px solid black;padding:5px;font-size:14px;">
+                                        <span t-esc="'{0:,.0f}'.format(line.product_qty)"/>
+                                    </td>
+                                    <td style="text-align:right;border:1px solid black;padding:5px;font-size:14px;">
+                                        <span t-esc="'{0:,.0f}'.format(line.price_unit)"/>
+                                    </td>
+                                    <td style="text-align:right;border:1px solid black;padding:5px;font-size:14px;">
+                                        <span t-esc="'{0:,.0f}'.format(line.price_subtotal)"/>
+                                    </td>
+                                </tr>
+                            </t>
+                        </table>
+                    </t>
+                    <t t-if="o.is_service == True">
+                        <table class="table table-condensed">
+                            <tr>
+                                <td width="85%"
+                                    style="text-align:center;border:1px solid black;padding:5px;font-size:14px;">
+                                    <strong>DESCRIPTION</strong>
+                                </td>
+                                <td width="20%"
+                                    style="text-align:center;border:1px solid black;padding:5px;font-size:14px;">
+                                    <strong>AMOUNT</strong> 
+                                </td>
+                            </tr>
+                            <t t-foreach="o.order_line" t-as="line">
+                                <tr>
+                                    <td style="text-align:center;border:1px solid black;padding:5px;font-size:14px;">
+                                        <span t-field="line.name"/>
+                                    </td>
+                                    <td style="text-align:right;border:1px solid black;padding:5px;font-size:14px;">
+                                        <span t-esc="'{0:,.0f}'.format(line.price_subtotal)"/>
+                                    </td>
+                                </tr>
+                            </t>
+                        </table>
+                    </t>
+                    <table class="table table-condensed" style="border-color:white;">
+                        <tr>
+                            <td width="60%"
+                                style="text-align:left;padding:5px;font-size:14px;
+                                border-top:1px solid black;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                <strong>Payment Instruction (Filled in by Vendor):</strong>
+                            </td>
+                            <td width="25%"
+                                style="text-align:right;border:0px;padding:5px;font-size:14px;">
+                                <strong>SUB TOTAL</strong>
+                            </td>
+                            <td width="20%"
+                                style="text-align:right;padding:5px;font-size:14px;
+                                border-top:1px solid black;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                <span t-esc="'{0:,.0f}'.format(o.amount_untaxed)"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="60%"
+                                style="text-align:left;padding:5px;font-size:14px;
+                                border-top:0px;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                            </td>
+                            <td width="25%"
+                                style="text-align:right;padding:5px;font-size:14px;border:0px">
+                                <strong>DISCOUNT</strong>
+                            </td>
+                            <td width="20%"
+                                style="text-align:right;padding:5px;font-size:14px;
+                                border-top:0px;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                <span t-esc="'{0:,.0f}'.format(o.amount_discount)"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="60%"
+                                style="text-align:left;padding:5px;font-size:14px;
+                                border-top:0px;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                            </td>
+                            <td width="25%"
+                                style="text-align:right;padding:5px;font-size:14px;border:0px">
+                                <strong>VAT</strong>
+                            </td>
+                            <td width="20%"
+                                style="text-align:right;padding:5px;font-size:14px;
+                                border-top:0px;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                <span t-esc="'{0:,.0f}'.format(o.amount_tax_editable)"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="60%"
+                                style="text-align:left;padding:5px;font-size:14px;
+                                border-top:0px;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                            </td>
+                            <td width="25%"
+                                style="text-align:right;border:0px;padding:5px;font-size:14px;">
+                                <strong>WITHOLDING TAX</strong>
+                            </td>
+                            <td width="20%"
+                                style="text-align:right;padding:5px;font-size:14px;
+                                border-top:0px;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                <span t-esc="'{0:,.0f}'.format(o.amount_pph_editable)"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="60%"
+                                style="text-align:left;padding:5px;font-size:14px;
+                                border-top:0px;
+                                border-bottom:1px solid black;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                            </td>
+                            <td width="25%"
+                                style="text-align:right;border:0px;padding:5px;font-size:14px;">
+                                <strong>TOTAL</strong>
+                            </td>
+                            <td width="20%"
+                                style="text-align:right;border:1px solid black;padding:5px;font-size:14px;">
+                                <span t-esc="'{0:,.0f}'.format(o.amount_total)"/>
+                            </td>
+                        </tr>
+                    </table>
+                    <table class="table table-condensed" style="border-color:white;">
+                        <tr>
+                            <td width="100%"
+                                style="text-align:left;padding:2px;font-size:10px;border:0px">
+                                1. All invoices and delivery notes should be addressed to accounts payable department and must be attached with a copy of our PO.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="100%"
+                                style="text-align:left;padding:2px;font-size:10px;border:0px">
+                                2. Acceptance of the goods is subject to our quality control inspection.
+                            </td>
+                        </tr>
+                    </table>
+                    <table class="table table-condensed" style="border-color:white;">
+                        <tr>
+                            <td width="33%"
+                                style="text-align:center;padding:5px;font-size:14px;border:1px solid black">
+                                PREPARED BY
+                            </td>
+                            <td width="33%"
+                                style="text-align:center;padding:5px;font-size:14px;border:1px solid black">
+                                CHECKED BY
+                            </td>
+                            <td width="33%"
+                                style="text-align:center;padding:5px;font-size:14px;border:1px solid black">
+                                APPROVED BY
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="33%"
+                                style="text-align:left;padding:5px;font-size:12px;
+                                border-top:0px;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                Name : 
+                            </td>
+                            <td width="33%"
+                                style="text-align:left;padding:5px;font-size:12px;
+                                border-top:0px;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                Name : 
+                            </td>
+                            <td width="33%"
+                                style="text-align:left;padding:5px;font-size:12px;
+                                border-top:0px;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                Name : 
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="33%"
+                                style="text-align:left;padding:5px;font-size:12px;
+                                border-top:0px;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                Date : 
+                            </td>
+                            <td width="33%"
+                                style="text-align:left;padding:5px;font-size:12px;
+                                border-top:0px;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                Date : 
+                            </td>
+                            <td width="33%"
+                                style="text-align:left;padding:5px;font-size:12px;
+                                border-top:0px;
+                                border-bottom:0px;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                Date : 
+                            </td>
+                        </tr>
+                        <tr>
+                            <td width="33%"
+                                style="text-align:left;padding:5px;font-size:12px;
+                                border-top:0px;
+                                border-bottom:1px solid black;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                Sign : 
+                            </td>
+                            <td width="33%"
+                                style="text-align:left;padding:5px;font-size:12px;
+                                border-top:0px;
+                                border-bottom:1px solid black;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                Sign : 
+                            </td>
+                            <td width="33%"
+                                style="text-align:left;padding:5px;font-size:12px;
+                                border-top:0px;
+                                border-bottom:1px solid black;
+                                border-left:1px solid black;
+                                border-right:1px solid black;">
+                                Sign : 
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </template>
+
+    </data>
+</odoo>

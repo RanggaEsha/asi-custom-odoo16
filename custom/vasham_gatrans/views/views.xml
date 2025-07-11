@@ -1,0 +1,195 @@
+<odoo>
+  <data>
+        
+        <!-- Gatrans CSD -->
+        <record id="gatrans_consignment_search" model="ir.ui.view">
+            <field name="name">Consignment Declaration Certificate (CSD)</field>
+            <field name="model">gatrans.consignment</field>
+            <field name="arch" type="xml">
+                <search string="Search Document">
+                    <field name="awb_number"/>
+                    <field name="name"/>
+                    <field name="csd_number"/>
+                    <filter string="Draft" name="draft" domain="[('state', '=', 'Draft')]"/>                    
+                    <filter string="Passed" name="passed" domain="[('state', '=', 'Passed')]"/>
+                    <filter string="Waiting Driver" name="waiting_driver" domain="[('state', '=', 'Waiting Driver')]"/>
+                    <filter string="CSD Generated" name="csd_generated" domain="[('state', '=', 'CSD Generated')]"/>
+                    <filter string="Confirmed" name="confirmed" domain="[('state', '=', 'Confirmed')]"/>
+                    <filter string="Invoiced" name="invoices" domain="[('state', '=', 'Invoiced')]"/>
+                    <filter string="Paid" name="paid" domain="[('state', '=', 'Paid')]"/>
+                    <filter string="Not Failed" name="not_failed" domain="[('state', '!=', 'Failed')]"/>
+                </search>
+            </field>
+        </record>
+
+        <record id="gatrans_consignment_tree" model="ir.ui.view">
+            <field name="name">Consignment Declaration Certificate (CSD)</field>
+            <field name="model">gatrans.consignment</field>
+            <field name="arch" type="xml">
+                <tree decoration-muted="state=='Failed'">
+                    <field name="name"/>
+                    <field name="csd_number"/>
+                    <field name="date"/>
+                    <field name="consignee_id"/>
+                    <field name="airline_id"/>
+                    <field name="awb_code"/>
+                    <field name="awb_number"/>
+                    <field name="destination_id"/>
+                    <field name="flight_id"/>
+                    <field name="driver_id"/>
+                    <field name="label_id"/>
+                    <field name="seal_id"/>
+                    <!-- <field name="avsec"/> -->
+                    <field name="state"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="gatrans_consignment_form" model="ir.ui.view">
+            <field name="name">Consignment Declaration Certificate (CSD)</field>
+            <field name="model">gatrans.consignment</field>
+            <field name="arch" type="xml">
+                <form> 
+                    <header>
+                        <button name="action_pass" type="object" string="Pass" 
+                            class="oe_highlight" states="Draft"/>
+                        <button name="action_fail" type="object" string="Fail" 
+                            states="Draft"/>
+                        <button name="action_waiting" type="object" string="Waiting Driver" 
+                            class="oe_highlight" states="Passed"/>
+                        <button name="action_delivery" type="object" string="Driver Assigned" 
+                            class="oe_highlight" states="Waiting Driver"/>
+                        <button name="action_confirm" type="object" string="Confirm" 
+                            class="oe_highlight" states="CSD Generated"/>
+                        <button name="action_create_invoices" type="object" string="Create Invoice" 
+                            class="oe_highlight" states="Confirmed"/>
+                        <button name="action_draft" type="object" string="Set to Draft" 
+                            states="Passed"/>
+                        <field name="state" widget="statusbar" readonly="1"/>
+                    </header>
+                    <sheet>
+                        <group col="3">
+                            <group>
+                                <field name="name" readonly="1"/>
+                                <field name="csd_number" readonly="1"
+                                    attrs="{'invisible': [('state', 'in', ('Draft','Fail'))]}"/>
+                                <field name="date"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="consignee_id"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="airline_id"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <label for="awb_number"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <div>
+                                    <field name="awb_code" class="oe_inline"
+                                        attrs="{'readonly': [('state', '!=', 'Draft')]}"/> -
+                                    <field name="awb_number" class="oe_inline"
+                                        attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                </div>
+                                <field name="destination_id"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="flight_id"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                            </group>
+                            <group>
+                                <field name="remarks"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="screening_method"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="other_method"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="driver_id"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="label_id"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="seal_id"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                            </group>
+                            <group>
+                                <field name="origin"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="transit"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="security_status"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="received_from"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="grounds"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="avsec"
+                                    attrs="{'readonly': [('state', '!=', 'Draft')]}"/>
+                                <field name="move_id" readonly="1"
+                                    attrs="{'invisible': [('state', '!=', 'Invoiced')]}"/>
+                                <field name="move_status" readonly="1"
+                                    attrs="{'invisible': [('state', '!=', 'Invoiced')]}"/>
+                            </group>
+                        </group>
+                        <notebook>
+                            <page name="items" string="Items">
+                                <group>
+                                    <field name="product_id" class="oe_inline"
+                                        attrs="{'readonly': [('state', 'not in', ('Draft','Passed'))]}"/>
+                                    <field name="quantity" class="oe_inline"
+                                        attrs="{'readonly': [('state', 'not in', ('Draft','Passed'))]}"/>
+                                    <field name="weight" class="oe_inline" readonly="1"
+                                        attrs="{'readonly': [('state', 'not in', ('Draft','Passed'))]}"/>
+                                    <button name="action_get_scale" type="object" 
+                                        string="Scale" class="oe_highlight"/>
+                                    <button name="action_add_item" type="object" 
+                                        string="Add Item" class="oe_highlight"/>
+                                </group>
+                                <field name="line_ids">
+                                    <tree editable="bottom" create="false">
+                                        <field name="product_id" readonly="1"/>
+                                        <field name="quantity" readonly="1"/>
+                                        <field name="weight" readonly="1"/>
+                                        <field name="weight_actual"/>
+                                    </tree>
+                                </field>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <record id="gatrans_consignment_action" model="ir.actions.act_window">
+            <field name="name">Consignment Declaration Certificate (CSD)</field>
+            <field name="res_model">gatrans.consignment</field>
+            <field name="view_mode">tree,form</field>
+            <!-- <field name="context">{'search_default_not_failed': 1}</field> -->
+            <field name="domain">[('state', '!=', 'Failed')]</field>
+            <field name="help" type="html">
+                <p class="oe_view_nocontent_create">
+                    Click to create Document
+                </p>                
+            </field>
+        </record>
+
+        <!-- Failed Action -->
+        <record id="gatrans_consignment_failed_action" model="ir.actions.act_window">
+            <field name="name">Failed AWB</field>
+            <field name="res_model">gatrans.consignment</field>
+            <field name="view_mode">tree,form</field>
+            <field name="domain">[('state', '=', 'Failed')]</field>
+        </record>
+        
+        <menuitem id="menu_gatrans" 
+            name="Gatrans" 
+            sequence="0"/>
+
+            <menuitem id="menu_gatrans_csd" 
+                name="CSD" 
+                sequence="0"
+                parent="menu_gatrans"
+                action="gatrans_consignment_action"/>
+
+            <menuitem id="menu_gatrans_csd_failed" 
+                name="Failed Document" 
+                sequence="1"
+                parent="menu_gatrans"
+                action="gatrans_consignment_failed_action"/>
+
+  </data>
+</odoo>
