@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Custom CSS for CRM Activity Dashboard -->
+    <template id="crm_activity_dashboard_assets" inherit_id="web.assets_backend">
+        <xpath expr="." position="inside">
+            <style type="text/css">
+                /* CRM Activity Dashboard Styling */
+                .o_list_view .o_data_row.decoration-danger {
+                    background-color: #ffebee !important;
+                    border-left: 4px solid #f44336 !important;
+                }
+                
+                .o_list_view .o_data_row.decoration-warning {
+                    background-color: #fff3e0 !important;
+                    border-left: 4px solid #ff9800 !important;
+                }
+                
+                .o_list_view .o_data_row.decoration-info {
+                    background-color: #e3f2fd !important;
+                    border-left: 4px solid #2196f3 !important;
+                }
+                
+                .o_list_view .o_data_row.decoration-success {
+                    background-color: #e8f5e8 !important;
+                    border-left: 4px solid #4caf50 !important;
+                }
+                
+                .o_list_view .o_data_row.decoration-muted {
+                    background-color: #fafafa !important;
+                    border-left: 4px solid #9e9e9e !important;
+                }
+                
+                /* Status badges styling */
+                .badge.o_field_badge.decoration-danger {
+                    background-color: #f44336 !important;
+                    color: white !important;
+                }
+                
+                .badge.o_field_badge.decoration-warning {
+                    background-color: #ff9800 !important;
+                    color: white !important;
+                }
+                
+                .badge.o_field_badge.decoration-info {
+                    background-color: #2196f3 !important;
+                    color: white !important;
+                }
+                
+                .badge.o_field_badge.decoration-success {
+                    background-color: #4caf50 !important;
+                    color: white !important;
+                }
+                
+                .badge.o_field_badge.decoration-muted {
+                    background-color: #9e9e9e !important;
+                    color: white !important;
+                }
+            </style>
+            
+            <!-- JavaScript Assets for Real-time Updates -->
+            <script type="text/javascript" src="/dashboard_crm_activity/static/src/js/crm_activity_dashboard.js"/>
+        </xpath>
+    </template>
+</odoo>

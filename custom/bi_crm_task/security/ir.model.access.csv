@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_crm_task_wizard,access_crm_task_wizard,model_crm_task_wizard,base.group_user,1,1,1,1
+access_crm_handover_wizard,access_crm_handover_wizard,model_crm_handover_wizard,group_handover_manager,1,1,1,1
+access_crm_handover_wizard_user,access_crm_handover_wizard_user,model_crm_handover_wizard,base.group_user,1,0,0,0

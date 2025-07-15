@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        
+        <!-- Security Categories -->
+        <record model="ir.module.category" id="module_category_crm_handover">
+            <field name="name">CRM Handover</field>
+            <field name="description">Access rights for CRM handover functionality</field>
+            <field name="sequence">20</field>
+        </record>
+
+        <!-- Security Groups -->
+        <record model="res.groups" id="group_handover_user">
+            <field name="name">Handover User</field>
+            <field name="category_id" ref="module_category_crm_handover"/>
+            <field name="comment">Can view handover leads and basic handover operations</field>
+        </record>
+
+        <record model="res.groups" id="group_handover_manager">
+            <field name="name">Handover Manager</field>
+            <field name="category_id" ref="module_category_crm_handover"/>
+            <field name="implied_ids" eval="[(4, ref('group_handover_user'))]"/>
+            <field name="comment">Can perform handover operations between sales and solution delivery teams</field>
+        </record>
+
+        <!-- Record Rules for Handover Leads -->
+        <record model="ir.rule" id="rule_handover_lead_visibility">
+            <field name="name">Handover Lead Visibility</field>
+            <field name="model_id" ref="crm.model_crm_lead"/>
+            <field name="domain_force">[
+                '|',
+                ('is_handover_lead', '=', False),
+                '&amp;',
+                ('is_handover_lead', '=', True),
+                '|',
+                ('team_id.member_ids', 'in', [user.id]),
+                ('user_has_groups', '=', 'bi_crm_task.group_handover_manager')
+            ]</field>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+
+    </data>
+</odoo>

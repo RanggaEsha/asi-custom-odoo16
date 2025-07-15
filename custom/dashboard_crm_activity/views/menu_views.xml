@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Action for CRM Activity Dashboard -->
+    <record id="action_crm_activity_dashboard" model="ir.actions.act_window">
+        <field name="name">Activity Dashboard</field>
+        <field name="res_model">crm.activity.dashboard</field>
+        <field name="view_mode">tree,kanban,form,pivot,graph</field>
+        <field name="view_id" ref="view_crm_activity_dashboard_tree"/>
+        <field name="search_view_id" ref="view_crm_activity_dashboard_search"/>
+        <field name="domain">[]</field>
+        <field name="context">{
+            'search_default_active_activities': 1,
+            'search_default_my_activities': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No CRM activities found!
+            </p>
+            <p>
+                This dashboard shows all activities related to CRM leads and opportunities.
+                Activities are color-coded based on their status:
+            </p>
+            <ul>
+                <li><span style="color: #d32f2f;">Red</span> - Overdue activities</li>
+                <li><span style="color: #ff9800;">Orange</span> - Activities due today</li>
+                <li><span style="color: #ffeb3b;">Yellow</span> - Activities due tomorrow</li>
+                <li><span style="color: #9e9e9e;">Grey</span> - Planned future activities</li>
+                <li><span style="color: #4caf50;">Green</span> - Completed activities</li>
+            </ul>
+            <p>
+                Use the filters above to navigate through activities by date, status, team, or user.
+            </p>
+        </field>
+    </record>
+
+    <!-- Submenu under CRM -->
+    <menuitem id="menu_crm_activity_dashboard"
+              name="Activity Dashboard"
+              parent="crm.crm_menu_root"
+              action="action_crm_activity_dashboard"
+              sequence="15"
+              groups="dashboard_crm_activity.group_crm_activity_dashboard_user"/>
+
+    <!-- Configuration submenu -->
+    <menuitem id="menu_crm_activity_dashboard_config"
+              name="Configure Dashboard"
+              parent="crm.crm_menu_config"
+              action="action_crm_activity_dashboard_wizard"
+              sequence="20"
+              groups="dashboard_crm_activity.group_crm_activity_dashboard_manager"/>
+
+    <!-- Additional action for overdue activities -->
+    <record id="action_crm_activity_dashboard_overdue" model="ir.actions.act_window">
+        <field name="name">Overdue Activities</field>
+        <field name="res_model">crm.activity.dashboard</field>
+        <field name="view_mode">tree,kanban,form</field>
+        <field name="view_id" ref="view_crm_activity_dashboard_tree"/>
+        <field name="search_view_id" ref="view_crm_activity_dashboard_search"/>
+        <field name="domain">[('state', '=', 'overdue')]</field>
+        <field name="context">{
+            'search_default_overdue': 1,
+        }</field>
+    </record>
+
+    <!-- Additional action for today's activities -->
+    <record id="action_crm_activity_dashboard_today" model="ir.actions.act_window">
+        <field name="name">Today's Activities</field>
+        <field name="res_model">crm.activity.dashboard</field>
+        <field name="view_mode">tree,kanban,form</field>
+        <field name="view_id" ref="view_crm_activity_dashboard_tree"/>
+        <field name="search_view_id" ref="view_crm_activity_dashboard_search"/>
+        <field name="domain">[('state', '=', 'today')]</field>
+        <field name="context">{
+            'search_default_today': 1,
+        }</field>
+    </record>
+
+    <!-- Additional action for my activities -->
+    <record id="action_crm_activity_dashboard_my" model="ir.actions.act_window">
+        <field name="name">My Activities</field>
+        <field name="res_model">crm.activity.dashboard</field>
+        <field name="view_mode">tree,kanban,form</field>
+        <field name="view_id" ref="view_crm_activity_dashboard_tree"/>
+        <field name="search_view_id" ref="view_crm_activity_dashboard_search"/>
+        <field name="domain">[('user_id', '=', uid)]</field>
+        <field name="context">{
+            'search_default_my_activities': 1,
+            'search_default_active_activities': 1,
+        }</field>
+    </record>
+
+    <!-- Server actions for quick access -->
+    <record id="action_server_mark_done_selected" model="ir.actions.server">
+        <field name="name">Mark Selected as Done</field>
+        <field name="model_id" ref="model_crm_activity_dashboard"/>
+        <field name="binding_model_id" ref="model_crm_activity_dashboard"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+for record in records:
+    if record.activity_id and record.is_active:
+        record.activity_id.action_done()
+        </field>
+        <field name="groups_id" eval="[(4, ref('group_crm_activity_dashboard_manager'))]"/>
+    </record>
+
+    <!-- Automated actions for refreshing the view -->
+    <record id="ir_cron_refresh_activity_dashboard" model="ir.cron">
+        <field name="name">Refresh CRM Activity Dashboard</field>
+        <field name="model_id" ref="model_crm_activity_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">model.init()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">hours</field>
+        <field name="numbercall">-1</field>
+        <field name="active">True</field>
+    </record>
+</odoo>

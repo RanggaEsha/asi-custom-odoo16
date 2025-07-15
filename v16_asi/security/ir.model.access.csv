@@ -1,6 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_purchase_request,access_purchase_request,model_purchase_request,base.group_user,1,1,1,1
-access_purchase_request_line,access_purchase_request_line,model_purchase_request_line,base.group_user,1,1,1,1
-access_account_level,access_account_level,model_account_level,base.group_user,1,1,1,1
-access_account_contract_type,access_account_contract_type,model_account_contract_type,base.group_user,1,1,1,1
-access_cancel_purchase_request,access_cancel_purchase_request,model_cancel_purchase_request,base.group_user,1,1,1,1

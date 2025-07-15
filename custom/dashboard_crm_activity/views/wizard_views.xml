@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Configuration Wizard View -->
+    <record id="view_crm_activity_dashboard_wizard_form" model="ir.ui.view">
+        <field name="name">crm.activity.dashboard.wizard.form</field>
+        <field name="model">crm.activity.dashboard.wizard</field>
+        <field name="arch" type="xml">
+            <form string="CRM Activity Dashboard Configuration">
+                <div class="alert alert-info" role="alert">
+                    <h4>Welcome to CRM Activity Dashboard!</h4>
+                    <p>Configure your dashboard preferences below, or skip to use default settings.</p>
+                </div>
+                
+                <group>
+                    <group string="Display Settings">
+                        <field name="default_view" widget="radio"/>
+                        <field name="show_revenue"/>
+                        <field name="color_scheme" widget="radio"/>
+                    </group>
+                    
+                    <group string="Default Filters">
+                        <field name="filter_my_activities"/>
+                        <field name="filter_active_only"/>
+                    </group>
+                </group>
+                
+                <group string="Advanced Options">
+                    <field name="enable_notifications"/>
+                    <field name="auto_refresh"/>
+                </group>
+                
+                <footer>
+                    <button name="action_configure" 
+                            string="Configure &amp; Open Dashboard" 
+                            type="object" 
+                            class="btn-primary"/>
+                    <button name="action_skip" 
+                            string="Skip &amp; Use Defaults" 
+                            type="object" 
+                            class="btn-secondary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action for Configuration Wizard -->
+    <record id="action_crm_activity_dashboard_wizard" model="ir.actions.act_window">
+        <field name="name">Configure CRM Activity Dashboard</field>
+        <field name="res_model">crm.activity.dashboard.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="view_id" ref="view_crm_activity_dashboard_wizard_form"/>
+    </record>
+</odoo>

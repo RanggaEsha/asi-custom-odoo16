@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        
+        <!-- Sample CRM Teams for demonstration -->
+        <record id="crm_team_sales" model="crm.team">
+            <field name="name">Sales Team</field>
+            <field name="sequence">10</field>
+            <field name="use_leads">True</field>
+            <field name="use_opportunities">True</field>
+            <field name="color">1</field>
+        </record>
+
+        <record id="crm_team_solution_delivery" model="crm.team">
+            <field name="name">Solution Delivery Team</field>
+            <field name="sequence">20</field>
+            <field name="use_leads">True</field>
+            <field name="use_opportunities">True</field>
+            <field name="color">3</field>
+        </record>
+
+        <!-- Add admin user to handover manager group by default -->
+        <record id="base.user_admin" model="res.users">
+            <field name="groups_id" eval="[(4, ref('group_handover_manager'))]"/>
+        </record>
+
+    </data>
+</odoo>
