@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 {
-    'name': "CRM Activity Dashboard",
+    'name': "Peepl CRM Activity Dashboard",
 
     'summary': """
         Comprehensive CRM Activity Dashboard with advanced filtering and color-coded status""",
@@ -20,7 +20,7 @@
         * Real-time activity status tracking
     """,
 
-    'author': "ASI Custom Development",
+    'author': "Ahmad Rangga",
     'website': "https://www.yourcompany.com",
     'category': 'CRM',
     'version': '1.0.0',

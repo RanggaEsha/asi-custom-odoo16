@@ -39,7 +39,7 @@
               parent="crm.crm_menu_root"
               action="action_crm_activity_dashboard"
               sequence="15"
-              groups="dashboard_crm_activity.group_crm_activity_dashboard_user"/>
+              groups="peepl_crm_activity_dashboard.group_crm_activity_dashboard_user"/>
 
     <!-- Configuration submenu -->
     <menuitem id="menu_crm_activity_dashboard_config"
@@ -47,7 +47,7 @@
               parent="crm.crm_menu_config"
               action="action_crm_activity_dashboard_wizard"
               sequence="20"
-              groups="dashboard_crm_activity.group_crm_activity_dashboard_manager"/>
+              groups="peepl_crm_activity_dashboard.group_crm_activity_dashboard_manager"/>
 
     <!-- Additional action for overdue activities -->
     <record id="action_crm_activity_dashboard_overdue" model="ir.actions.act_window">

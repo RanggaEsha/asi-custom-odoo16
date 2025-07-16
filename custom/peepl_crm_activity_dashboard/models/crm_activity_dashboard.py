@@ -9,6 +9,7 @@ _logger = logging.getLogger(__name__)
 class CrmActivityDashboard(models.Model):
     _name = 'crm.activity.dashboard'
     _description = 'CRM Activity Dashboard'
+    _rec_name = 'user_id'
     _auto = False
     _order = 'date_deadline asc, priority desc, id desc'
 

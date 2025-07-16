@@ -21,10 +21,6 @@ class crm_lead(models.Model):
     def task_count(self):
         task_obj = self.env['project.task']
         self.task_number = task_obj.search_count([('lead_id', 'in', [a.id for a in self])])
-    
-    def project_count(self):
-        project_obj = self.env['project.project']
-        self.project_number = project_obj.search_count([('lead_id', 'in', [a.id for a in self])])
 
     def handover_count(self):
         """Count solution delivery leads created from this sales lead"""
@@ -36,7 +32,6 @@ class crm_lead(models.Model):
             record.is_won_stage = record.stage_id.is_won if record.stage_id else False
 
     task_number = fields.Integer(compute='task_count', string='Tasks')
-    project_number = fields.Integer(compute='project_count', string='Projects')
     
     # Handover fields
     parent_lead_id = fields.Many2one('crm.lead', string='Parent Sales Lead', 
@@ -56,7 +51,7 @@ class crm_lead(models.Model):
             raise UserError(_('Only won leads can be handed over to Solution Delivery team.'))
         
         # Check user permission
-        if not self.env.user.has_group('bi_crm_task.group_handover_manager'):
+        if not self.env.user.has_group('peepl_crm.group_handover_manager'):
             raise UserError(_('You do not have permission to perform handover operations. Please contact your administrator.'))
         
         # Return wizard action
@@ -76,7 +71,6 @@ class crm_task_wizard(models.TransientModel):
     _name = 'crm.task.wizard'
     _description = "CRM Task Wizard"
     
-    
     def get_name(self):
         ctx = dict(self._context or {})
         active_id = ctx.get('active_id')
@@ -84,114 +78,48 @@ class crm_task_wizard(models.TransientModel):
         name = crm_brw.name
         return name
     
-    
-    create_project = fields.Boolean('Create New Project', default=False)
-    project_id = fields.Many2one('project.project','Existing Project')
-    project_name = fields.Char('Project Name')
-    project_description = fields.Text('Project Description')
-    create_task = fields.Boolean('Create Initial Task', default=True)
+    project_id = fields.Many2one('project.project', 'Project', required=True)
     dead_line = fields.Date('Deadline')
-    name = fields.Char('Task Name',default = get_name)
+    name = fields.Char('Task Name', default=get_name, required=True)
     user_ids = fields.Many2many('res.users', relation='project_task_assignee_rel', column1='task_id', column2='user_id',
         string='Assignees', default=lambda self: self.env.user)
 
-    @api.onchange('create_project')
-    def _onchange_create_project(self):
-        """Clear project_id when creating new project"""
-        if self.create_project:
-            self.project_id = False
-            if not self.project_name:
-                self.project_name = self.name
-            # When creating new project, task creation becomes optional
-            self.create_task = False
-        else:
-            # When using existing project, task creation is mandatory
-            self.create_task = True
-    
-    @api.onchange('project_id')  
-    def _onchange_project_id(self):
-        """Clear create_project when selecting existing project"""
-        if self.project_id:
-            self.create_project = False
-            self.create_task = True
-
-    def create_project_task(self):
+    def create_task(self):
+        """Create task in selected project"""
         ctx = dict(self._context or {})
         active_id = ctx.get('active_id')
         crm_brw = self.env['crm.lead'].browse(active_id)
         
-        # Determine project_id
-        project_id = False
-        created_project = None
+        if not self.project_id:
+            raise UserError(_('Please select a project for the task.'))
         
-        if self.create_project:
-            # Create new project
-            project_vals = {
-                'name': self.project_name or self.name,
-                'description': self.project_description or False,
-                'partner_id': crm_brw.partner_id.id or False,
-                'lead_id': crm_brw.id or False,
-            }
-            created_project = self.env['project.project'].create(project_vals)
-            project_id = created_project.id
-        else:
-            # Use existing project
-            project_id = self.project_id.id if self.project_id else False
+        # Create task
+        user = []
+        for users in self.user_ids:
+            user.append(users.id)
+            
+        vals = {
+            'name': self.name,
+            'project_id': self.project_id.id,
+            'user_ids': user or False,
+            'date_deadline': self.dead_line or False,
+            'partner_id': crm_brw.partner_id.id or False,
+            'lead_id': crm_brw.id or False
+        }
+        created_task = self.env['project.task'].create(vals)
         
-        # Create task only if requested
-        created_task = None
-        if self.create_task:
-            user = []
-            for users in self.user_ids:
-                user.append(users.id)
-            vals = {'name': self.name,
-                    'project_id': project_id,
-                    'user_ids': user or False,
-                    'date_deadline':  self.dead_line or False,
-                    'partner_id': crm_brw.partner_id.id or False,
-                    'lead_id': crm_brw.id or False
-                    }
-            created_task = self.env['project.task'].create(vals)
-        
-        # Return action to show created project or task
-        if self.create_project and created_project:
-            return {
-                'type': 'ir.actions.act_window',
-                'name': 'Created Project',
-                'res_model': 'project.project',
-                'res_id': created_project.id,
-                'view_mode': 'form',
-                'target': 'current',
-            }
-        elif created_task:
-            return {
-                'type': 'ir.actions.act_window',
-                'name': 'Created Task',
-                'res_model': 'project.task',
-                'res_id': created_task.id,
-                'view_mode': 'form',
-                'target': 'current',
-            }
-        else:
-            # If only project was created without task, show success message
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': 'Success',
-                    'message': f'Project "{self.project_name or self.name}" has been created successfully.',
-                    'type': 'success',
-                    'sticky': False,
-                }
-            }
+        # Return action to show created task
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Created Task',
+            'res_model': 'project.task',
+            'res_id': created_task.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
         
 class project_Task(models.Model):
     _inherit='project.task'
-    
-    lead_id =  fields.Many2one('crm.lead', 'Opportunity')
-
-class project_Project(models.Model):
-    _inherit='project.project'
     
     lead_id =  fields.Many2one('crm.lead', 'Opportunity')
 
@@ -274,7 +202,6 @@ class crm_handover_wizard(models.TransientModel):
             'parent_lead_id': source_lead.id,
             'is_handover_lead': True,
             'handover_date': fields.Datetime.now(),
-            'expected_revenue': self.expected_revenue,
             'type': 'opportunity',  # Start as opportunity in target team
             'stage_id': target_stage,
         }

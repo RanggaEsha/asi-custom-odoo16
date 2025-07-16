@@ -24,29 +24,17 @@
                        decoration-success="state == 'done'"/>
                 
                 <field name="activity_type_id" string="Activity Type"/>
-                <field name="summary" string="Summary"/>
+                <field name="summary" string="Summary" width="300px"/>
                 <field name="date_deadline" string="Due Date"/>
                 <field name="days_overdue" string="Days Overdue" 
                        attrs="{'invisible': [('state', '!=', 'overdue')]}"/>
                 
-                <!-- Lead/Opportunity Information -->
-                <field name="lead_name" string="Lead/Opportunity"/>
-                <field name="lead_type" string="Type"/>
+                <!-- Customer Information -->
                 <field name="partner_id" string="Customer"/>
-                <field name="stage_id" string="Stage"/>
-                <field name="team_id" string="Sales Team"/>
                 
                 <!-- User and Priority -->
                 <field name="user_id" string="Assigned To" widget="many2one_avatar_user"/>
                 <field name="priority" string="Priority" widget="priority"/>
-                
-                <!-- Revenue Information -->
-                <field name="expected_revenue" string="Expected Revenue" widget="monetary"/>
-                <field name="probability" string="Probability"/>
-                
-                <!-- Contact Information -->
-                <field name="lead_email" string="Email"/>
-                <field name="lead_phone" string="Phone"/>
                 
                 <!-- Hidden fields for filtering -->
                 <field name="activity_color" invisible="1"/>
@@ -83,7 +71,7 @@
                     <button name="action_open_lead" 
                             string="Open Lead" 
                             type="object" 
-                            class="btn-secondary"/>
+                            class="btn-primary"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 
@@ -180,38 +168,38 @@
                 
                 <!-- Date Filters -->
                 <filter name="filter_yesterday" string="Yesterday"
-                        domain="[('date_deadline', '=', (context_today() - datetime.timedelta(days=1)).strftime('%Y-%m-%d'))]"/>
+                        domain="[('date_deadline', '=', (context_today() - datetime.timedelta(days=1)))]"/>
                 <filter name="filter_today" string="Today"
                         domain="[('date_deadline', '=', context_today())]"/>
                 <filter name="filter_tomorrow" string="Tomorrow"
-                        domain="[('date_deadline', '=', (context_today() + datetime.timedelta(days=1)).strftime('%Y-%m-%d'))]"/>
+                        domain="[('date_deadline', '=', (context_today() + datetime.timedelta(days=1)))]"/>
                 
                 <separator/>
                 
-                <filter name="filter_this_week" string="This Week"
-                        domain="[('date_deadline', '&gt;=', (context_today() - datetime.timedelta(days=context_today().weekday())).strftime('%Y-%m-%d')),
-                                ('date_deadline', '&lt;=', (context_today() + datetime.timedelta(days=6-context_today().weekday())).strftime('%Y-%m-%d'))]"/>
-                <filter name="filter_past_week" string="Past Week"
-                        domain="[('date_deadline', '&gt;=', (context_today() - datetime.timedelta(days=7+context_today().weekday())).strftime('%Y-%m-%d')),
-                                ('date_deadline', '&lt;=', (context_today() - datetime.timedelta(days=1+context_today().weekday())).strftime('%Y-%m-%d'))]"/>
+                <filter name="filter_last_7_days" string="Last 7 Days"
+                        domain="[('date_deadline', '&gt;=', (context_today() - datetime.timedelta(days=7))),
+                                ('date_deadline', '&lt;=', context_today())]"/>
+                <filter name="filter_next_7_days" string="Next 7 Days"
+                        domain="[('date_deadline', '&gt;=', context_today()),
+                                ('date_deadline', '&lt;=', (context_today() + datetime.timedelta(days=7)))]"/>
                 
                 <separator/>
                 
-                <filter name="filter_this_month" string="This Month"
-                        domain="[('date_deadline', '&gt;=', context_today().replace(day=1).strftime('%Y-%m-%d')),
-                                ('date_deadline', '&lt;=', (context_today().replace(day=1) + datetime.timedelta(days=32)).replace(day=1) - datetime.timedelta(days=1)).strftime('%Y-%m-%d')]"/>
-                <filter name="filter_past_month" string="Past Month"
-                        domain="[('date_deadline', '&gt;=', (context_today().replace(day=1) - datetime.timedelta(days=1)).replace(day=1).strftime('%Y-%m-%d')),
-                                ('date_deadline', '&lt;=', (context_today().replace(day=1) - datetime.timedelta(days=1)).strftime('%Y-%m-%d'))]"/>
+                <filter name="filter_last_30_days" string="Last 30 Days"
+                        domain="[('date_deadline', '&gt;=', (context_today() - datetime.timedelta(days=30))),
+                                ('date_deadline', '&lt;=', context_today())]"/>
+                <filter name="filter_next_30_days" string="Next 30 Days"
+                        domain="[('date_deadline', '&gt;=', context_today()),
+                                ('date_deadline', '&lt;=', (context_today() + datetime.timedelta(days=30)))]"/>
                 
                 <separator/>
                 
                 <filter name="filter_this_year" string="This Year"
-                        domain="[('date_deadline', '&gt;=', context_today().replace(month=1, day=1).strftime('%Y-%m-%d')),
-                                ('date_deadline', '&lt;=', context_today().replace(month=12, day=31).strftime('%Y-%m-%d'))]"/>
-                <filter name="filter_past_year" string="Past Year"
-                        domain="[('date_deadline', '&gt;=', (context_today().replace(month=1, day=1) - datetime.timedelta(days=365)).strftime('%Y-%m-%d')),
-                                ('date_deadline', '&lt;=', (context_today().replace(month=1, day=1) - datetime.timedelta(days=1)).strftime('%Y-%m-%d'))]"/>
+                        domain="[('date_deadline', '&gt;=', context_today().strftime('%Y-01-01')),
+                                ('date_deadline', '&lt;=', context_today().strftime('%Y-12-31'))]"/>
+                <filter name="filter_last_year" string="Last Year"
+                        domain="[('date_deadline', '&gt;=', (context_today() - datetime.timedelta(days=365)).strftime('%Y-01-01')),
+                                ('date_deadline', '&lt;=', (context_today() - datetime.timedelta(days=365)).strftime('%Y-12-31'))]"/>
                 
                 <!-- Type Filters -->
                 <separator/>

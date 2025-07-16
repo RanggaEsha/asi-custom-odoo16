@@ -3,26 +3,28 @@
 
 
 {
-    'name': 'CRM Peepl',
+    'name': 'Peepl CRM',
     'version': '16.0.0.2',
     'category': 'CRM',
     'license': 'OPL-1',
-    'summary': 'Complete CRM workflow with Sales to Solution Delivery handover process, task and project management from leads.',
+    'summary': 'Complete CRM workflow with Sales to Solution Delivery handover process and task management from leads.',
     'description': """
     CRM Sales to Solution Delivery Handover Module
     ==============================================
     
     Features:
-    - Create tasks and projects directly from CRM leads
+    - Create tasks in existing projects directly from CRM leads
     - Sales to Solution Delivery team handover process
     - Maintain client relationships post-sales through Solution Delivery team
     - Separate revenue tracking for both teams
     - Complete audit trail of handover process
     - Dedicated views and workflows for handover management
+    - Task tracking and management linked to opportunities
+    - Secure handover workflow with proper permissions
     
-    Task on Lead, Add Task from lead, Task Lead, Create Project Task from Lead, Create Project from Lead, Sales Handover, Solution Delivery Pipeline, CRM Team Management.
+    Task on Lead, Add Task from Lead, Task Lead, Create Task from Lead, Sales Handover, Solution Delivery Pipeline, CRM Team Management, Handover Lead Management.
 """,
-    'author': 'BROWSEINFO',
+    'author': 'Ahmad Rangga',
     'website': 'https://www.browseinfo.com/demo-request?app=bi_crm_task&version=16&edition=Community',
     'depends': ['base', 'crm', 'sale', 'project'],
     'data': [
@@ -37,6 +39,3 @@
     'live_test_url':'https://www.browseinfo.com/demo-request?app=bi_crm_task&version=16&edition=Community',
     "images":['static/description/Banner.gif'],
 }
-
-
-# vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:
