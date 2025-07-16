@@ -32,11 +32,17 @@
                 ('is_handover_lead', '=', False),
                 '&amp;',
                 ('is_handover_lead', '=', True),
-                '|',
-                ('team_id.member_ids', 'in', [user.id]),
-                ('user_has_groups', '=', 'bi_crm_task.group_handover_manager')
+                ('team_id.member_ids', 'in', [user.id])
             ]</field>
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+
+        <!-- Separate rule for handover managers to see all handover leads -->
+        <record model="ir.rule" id="rule_handover_manager_access">
+            <field name="name">Handover Manager Access</field>
+            <field name="model_id" ref="crm.model_crm_lead"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_handover_manager'))]"/>
         </record>
 
     </data>
