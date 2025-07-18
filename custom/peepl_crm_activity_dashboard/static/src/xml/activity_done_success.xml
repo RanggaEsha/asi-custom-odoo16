@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates>
+    <t t-name="crm_activity_dashboard.ActivityDoneSuccess">
+        <div class="o_activity_done_success">
+            <!-- This is just a placeholder - the actual work is done in JS -->
+        </div>
+    </t>
+</templates>

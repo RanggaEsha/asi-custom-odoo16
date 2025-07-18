@@ -3,6 +3,10 @@
     <!-- Custom CSS for CRM Activity Dashboard -->
     <template id="crm_activity_dashboard_assets" inherit_id="web.assets_backend">
         <xpath expr="." position="inside">
+            <!-- JavaScript Files -->
+            <script type="text/javascript" src="/peepl_crm_activity_dashboard/static/src/js/activity_done_success.js"/>
+            
+            <!-- CSS Styles -->
             <style type="text/css">
                 /* CRM Activity Dashboard Styling */
                 .o_list_view .o_data_row.decoration-danger {
@@ -57,8 +61,16 @@
                 }
             </style>
             
+            <!-- XML Templates -->
+            <t t-call-assets="peepl_crm_activity_dashboard.activity_done_success_template" />
+            
             <!-- JavaScript Assets for Real-time Updates -->
-            <script type="text/javascript" src="/dashboard_crm_activity/static/src/js/crm_activity_dashboard.js"/>
+            <script type="text/javascript" src="/peepl_crm_activity_dashboard/static/src/js/crm_activity_dashboard.js"/>
         </xpath>
+    </template>
+
+    <!-- Activity Done Success Template -->
+    <template id="activity_done_success_template">
+        <t t-call="crm_activity_dashboard.ActivityDoneSuccess"/>
     </template>
 </odoo>

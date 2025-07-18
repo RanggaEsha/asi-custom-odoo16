@@ -34,6 +34,7 @@
         'security/ir.model.access.csv',
         'views/crm_activity_dashboard_views.xml',
         'views/wizard_views.xml',
+        'views/activity_mark_done_wizard_views.xml',
         'views/menu_views.xml',
         # 'views/assets.xml',  # Temporarily disabled
     ],

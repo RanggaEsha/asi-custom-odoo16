@@ -59,66 +59,188 @@ class CrmActivityDashboard(models.Model):
         ('lead', 'Lead'),
         ('opportunity', 'Opportunity')
     ], string='Type', readonly=True)
+    
+    # Additional fields for done activities
+    record_source = fields.Selection([
+        ('active', 'Active'),
+        ('history', 'History')
+    ], string='Source', readonly=True)
+    completed_by_user_id = fields.Many2one('res.users', string='Completed By', readonly=True)
+    feedback = fields.Html('Feedback', readonly=True)
+    attachment_ids = fields.Many2many('ir.attachment', string='Attachments', readonly=True)
 
     def init(self):
         """Create the SQL view for the dashboard"""
         tools.drop_view_if_exists(self.env.cr, self._table)
         
-        query = '''
-            CREATE OR REPLACE VIEW %s AS (
-                SELECT 
-                    ma.id as id,
-                    ma.id as activity_id,
-                    ma.activity_type_id,
-                    ma.summary,
-                    ma.note,
-                    ma.date_deadline,
-                    NULL::date as date_done,
-                    ma.user_id,
-                    ma.request_partner_id,
-                    ma.res_id as lead_id,
-                    cl.name as lead_name,
-                    cl.email_from as lead_email,
-                    cl.phone as lead_phone,
-                    cl.partner_id,
-                    cl.stage_id,
-                    cl.team_id,
-                    cl.expected_revenue,
-                    cl.probability,
-                    COALESCE(comp.currency_id, 1) as company_currency,
-                    true as is_active,
-                    cl.type as lead_type,
-                    COALESCE(cl.priority, '1') as priority,
-                    -- Compute state based on date_deadline
-                    CASE 
-                        WHEN ma.date_deadline < CURRENT_DATE THEN 'overdue'
-                        WHEN ma.date_deadline = CURRENT_DATE THEN 'today'
-                        WHEN ma.date_deadline = CURRENT_DATE + INTERVAL '1 day' THEN 'tomorrow'
-                        ELSE 'planned'
-                    END as state,
-                    -- Compute days overdue
-                    CASE 
-                        WHEN ma.date_deadline < CURRENT_DATE THEN 
-                            (CURRENT_DATE - ma.date_deadline)::integer
-                        ELSE 0
-                    END as days_overdue,
-                    -- Compute activity color based on state and days overdue
-                    CASE 
-                        WHEN ma.date_deadline < CURRENT_DATE THEN 
-                            CASE 
-                                WHEN (CURRENT_DATE - ma.date_deadline) > 7 THEN '#d32f2f'
-                                ELSE '#f44336'
-                            END
-                        WHEN ma.date_deadline = CURRENT_DATE THEN '#ff9800'
-                        WHEN ma.date_deadline = CURRENT_DATE + INTERVAL '1 day' THEN '#ffeb3b'
-                        ELSE '#9e9e9e'
-                    END as activity_color
-                FROM mail_activity ma
-                INNER JOIN crm_lead cl ON ma.res_id = cl.id AND ma.res_model = 'crm.lead'
-                LEFT JOIN res_company comp ON comp.id = COALESCE(cl.company_id, 1)
-                WHERE ma.res_model = 'crm.lead'
-            )
-        ''' % self._table
+        # Check if mail_activity_done table exists
+        self.env.cr.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'mail_activity_done'
+            );
+        """)
+        table_exists = self.env.cr.fetchone()[0]
+        
+        if table_exists:
+            # Full query with UNION when mail_activity_done exists
+            query = '''
+                CREATE OR REPLACE VIEW %s AS (
+                    -- Active activities from mail.activity
+                    SELECT 
+                        ma.id as id,
+                        ma.id as activity_id,
+                        ma.activity_type_id,
+                        ma.summary,
+                        ma.note,
+                        ma.date_deadline,
+                        NULL::date as date_done,
+                        ma.user_id,
+                        NULL::integer as completed_by_user_id,
+                        ma.request_partner_id,
+                        ma.res_id as lead_id,
+                        cl.name as lead_name,
+                        cl.email_from as lead_email,
+                        cl.phone as lead_phone,
+                        cl.partner_id,
+                        cl.stage_id,
+                        cl.team_id,
+                        cl.expected_revenue,
+                        cl.probability,
+                        COALESCE(comp.currency_id, 1) as company_currency,
+                        true as is_active,
+                        cl.type as lead_type,
+                        COALESCE(cl.priority, '1') as priority,
+                        'active'::varchar as record_source,
+                        NULL::text as feedback,
+                        -- Compute state based on date_deadline
+                        CASE 
+                            WHEN ma.date_deadline < CURRENT_DATE THEN 'overdue'
+                            WHEN ma.date_deadline = CURRENT_DATE THEN 'today'
+                            WHEN ma.date_deadline = CURRENT_DATE + INTERVAL '1 day' THEN 'tomorrow'
+                            ELSE 'planned'
+                        END as state,
+                        -- Compute days overdue
+                        CASE 
+                            WHEN ma.date_deadline < CURRENT_DATE THEN 
+                                (CURRENT_DATE - ma.date_deadline)::integer
+                            ELSE 0
+                        END as days_overdue,
+                        -- Compute activity color based on state and days overdue
+                        CASE 
+                            WHEN ma.date_deadline < CURRENT_DATE THEN 
+                                CASE 
+                                    WHEN (CURRENT_DATE - ma.date_deadline) > 7 THEN '#d32f2f'
+                                    ELSE '#f44336'
+                                END
+                            WHEN ma.date_deadline = CURRENT_DATE THEN '#ff9800'
+                            WHEN ma.date_deadline = CURRENT_DATE + INTERVAL '1 day' THEN '#ffeb3b'
+                            ELSE '#9e9e9e'
+                        END as activity_color
+                    FROM mail_activity ma
+                    INNER JOIN crm_lead cl ON ma.res_id = cl.id AND ma.res_model = 'crm.lead'
+                    LEFT JOIN res_company comp ON comp.id = COALESCE(cl.company_id, 1)
+                    WHERE ma.res_model = 'crm.lead'
+                    
+                    UNION ALL
+                    
+                    -- Done activities from mail.activity.done
+                    SELECT 
+                        mad.id + 100000 as id,  -- Offset to avoid ID conflicts
+                        mad.original_activity_id as activity_id,
+                        mad.activity_type_id,
+                        mad.summary,
+                        mad.note,
+                        mad.date_deadline,
+                        mad.date_done,
+                        mad.user_id,
+                        mad.completed_by_user_id,
+                        mad.request_partner_id,
+                        mad.lead_id,
+                        mad.lead_name,
+                        mad.lead_email,
+                        mad.lead_phone,
+                        mad.partner_id,
+                        mad.stage_id,
+                        mad.team_id,
+                        mad.expected_revenue,
+                        mad.probability,
+                        mad.company_currency,
+                        false as is_active,
+                        mad.lead_type,
+                        mad.priority,
+                        'history'::varchar as record_source,
+                        mad.feedback,
+                        'done'::varchar as state,
+                        mad.days_overdue,
+                        '#4caf50'::varchar as activity_color  -- Green for done
+                    FROM mail_activity_done mad
+                    WHERE mad.lead_id IS NOT NULL
+                )
+            ''' % self._table
+        else:
+            # Simplified query without UNION when mail_activity_done doesn't exist yet
+            query = '''
+                CREATE OR REPLACE VIEW %s AS (
+                    -- Active activities from mail.activity only
+                    SELECT 
+                        ma.id as id,
+                        ma.id as activity_id,
+                        ma.activity_type_id,
+                        ma.summary,
+                        ma.note,
+                        ma.date_deadline,
+                        NULL::date as date_done,
+                        ma.user_id,
+                        NULL::integer as completed_by_user_id,
+                        ma.request_partner_id,
+                        ma.res_id as lead_id,
+                        cl.name as lead_name,
+                        cl.email_from as lead_email,
+                        cl.phone as lead_phone,
+                        cl.partner_id,
+                        cl.stage_id,
+                        cl.team_id,
+                        cl.expected_revenue,
+                        cl.probability,
+                        COALESCE(comp.currency_id, 1) as company_currency,
+                        true as is_active,
+                        cl.type as lead_type,
+                        COALESCE(cl.priority, '1') as priority,
+                        'active'::varchar as record_source,
+                        NULL::text as feedback,
+                        -- Compute state based on date_deadline
+                        CASE 
+                            WHEN ma.date_deadline < CURRENT_DATE THEN 'overdue'
+                            WHEN ma.date_deadline = CURRENT_DATE THEN 'today'
+                            WHEN ma.date_deadline = CURRENT_DATE + INTERVAL '1 day' THEN 'tomorrow'
+                            ELSE 'planned'
+                        END as state,
+                        -- Compute days overdue
+                        CASE 
+                            WHEN ma.date_deadline < CURRENT_DATE THEN 
+                                (CURRENT_DATE - ma.date_deadline)::integer
+                            ELSE 0
+                        END as days_overdue,
+                        -- Compute activity color based on state and days overdue
+                        CASE 
+                            WHEN ma.date_deadline < CURRENT_DATE THEN 
+                                CASE 
+                                    WHEN (CURRENT_DATE - ma.date_deadline) > 7 THEN '#d32f2f'
+                                    ELSE '#f44336'
+                                END
+                            WHEN ma.date_deadline = CURRENT_DATE THEN '#ff9800'
+                            WHEN ma.date_deadline = CURRENT_DATE + INTERVAL '1 day' THEN '#ffeb3b'
+                            ELSE '#9e9e9e'
+                        END as activity_color
+                    FROM mail_activity ma
+                    INNER JOIN crm_lead cl ON ma.res_id = cl.id AND ma.res_model = 'crm.lead'
+                    LEFT JOIN res_company comp ON comp.id = COALESCE(cl.company_id, 1)
+                    WHERE ma.res_model = 'crm.lead'
+                )
+            ''' % self._table
+            
         self.env.cr.execute(query)
 
     @api.model
@@ -162,11 +284,44 @@ class CrmActivityDashboard(models.Model):
         }
 
     def action_mark_done(self):
-        """Action to mark activity as done"""
+        """Action to mark activity as done - opens wizard for feedback and attachments"""
         self.ensure_one()
+        
+        # Only allow marking done for active activities
+        if self.record_source != 'active':
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Warning',
+                    'message': 'This activity is already completed.',
+                    'type': 'warning',
+                }
+            }
+        
         activity = self.env['mail.activity'].browse(self.activity_id)
-        if activity.exists():
-            return activity.action_done()
+        if not activity.exists():
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Error',
+                    'message': 'Activity not found or already deleted.',
+                    'type': 'danger',
+                }
+            }
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Mark Activity as Done',
+            'res_model': 'activity.mark.done.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'active_id': self.id,
+                'active_model': self._name,
+            }
+        }
 
     def action_schedule_next(self):
         """Action to schedule next activity"""
@@ -174,6 +329,58 @@ class CrmActivityDashboard(models.Model):
         activity = self.env['mail.activity'].browse(self.activity_id)
         if activity.exists():
             return activity.action_feedback_schedule_next()
+    
+    def get_attachments(self):
+        """Get attachments for done activities"""
+        self.ensure_one()
+        if self.record_source == 'history':
+            # For done activities, get attachments from mail.activity.done
+            done_activity_id = self.id - 100000  # Reverse the offset
+            done_activity = self.env['mail.activity.done'].browse(done_activity_id)
+            if done_activity.exists():
+                return done_activity.attachment_ids
+        return self.env['ir.attachment']
+
+    def action_view_attachments(self):
+        """Action to view attachments for completed activities"""
+        self.ensure_one()
+        
+        if self.record_source != 'history':
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Info',
+                    'message': 'Attachments are only available for completed activities.',
+                    'type': 'info',
+                }
+            }
+        
+        attachments = self.get_attachments()
+        
+        if not attachments:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Info',
+                    'message': 'No attachments found for this completed activity.',
+                    'type': 'info',
+                }
+            }
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Activity Attachments',
+            'res_model': 'ir.attachment',
+            'view_mode': 'tree,form',
+            'domain': [('id', 'in', attachments.ids)],
+            'context': {
+                'default_res_model': 'mail.activity.done',
+                'default_res_id': self.id - 100000,
+            },
+            'target': 'new',
+        }
 
 
 class MailActivity(models.Model):
