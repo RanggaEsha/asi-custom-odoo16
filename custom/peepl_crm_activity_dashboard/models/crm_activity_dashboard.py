@@ -333,6 +333,8 @@ class CrmActivityDashboard(models.Model):
             'context': {
                 'active_id': self.id,
                 'active_model': self._name,
+                'form_view_ref': 'peepl_crm_activity_dashboard.view_activity_mark_done_wizard_form',
+                'dashboard_refresh_needed': True,
             }
         }
 

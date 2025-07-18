@@ -96,38 +96,54 @@ class MailActivityDone(models.Model):
             return False
             
         try:
-            # Prepare values for the done activity record
-            vals = {
-                'activity_type_id': activity.activity_type_id.id,
-                'summary': activity.summary or activity.activity_type_id.name,
-                'note': activity.note,
-                'date_deadline': activity.date_deadline,
-                'date_done': fields.Date.context_today(self),
-                'user_id': activity.user_id.id,
-                'completed_by_user_id': self.env.user.id,
-                'request_partner_id': activity.request_partner_id.id if activity.request_partner_id else False,
-                'priority': getattr(activity, 'priority', '1'),
-                'lead_id': activity.res_id,
-                'feedback': feedback,
-                'original_activity_id': activity.id,
-            }
-            
-            # Create the done activity record with transaction safety
+            # CRITICAL: Use a savepoint to ensure atomicity
             with self.env.cr.savepoint():
+                # Prepare values for the done activity record
+                vals = {
+                    'activity_type_id': activity.activity_type_id.id,
+                    'summary': activity.summary or activity.activity_type_id.name,
+                    'note': activity.note,
+                    'date_deadline': activity.date_deadline,
+                    'date_done': fields.Date.context_today(self),
+                    'user_id': activity.user_id.id,
+                    'completed_by_user_id': self.env.user.id,
+                    'request_partner_id': activity.request_partner_id.id if activity.request_partner_id else False,
+                    'priority': getattr(activity, 'priority', '1'),
+                    'lead_id': activity.res_id,
+                    'feedback': feedback,
+                    'original_activity_id': activity.id,
+                }
+                
+                # Create the done activity record
                 done_activity = self.create(vals)
                 
                 # Link attachments if provided
                 if attachment_ids:
-                    # Ensure attachments are valid
+                    # Ensure attachments are valid and exist
                     valid_attachments = self.env['ir.attachment'].browse(attachment_ids).exists()
                     if valid_attachments:
-                        done_activity.attachment_ids = [(6, 0, valid_attachments.ids)]
+                        # Create copies of attachments for the done activity
+                        done_attachments = []
+                        for attachment in valid_attachments:
+                            done_attachment = attachment.copy({
+                                'res_model': 'mail.activity.done',
+                                'res_id': done_activity.id,
+                                'name': f"[DONE] {attachment.name}",
+                            })
+                            done_attachments.append(done_attachment.id)
+                        
+                        if done_attachments:
+                            done_activity.attachment_ids = [(6, 0, done_attachments)]
+                
+                # Force commit the done activity record before the original activity is deleted
+                self.env.cr.commit()
                 
                 _logger.info(f"Successfully created done activity {done_activity.id} from activity {activity.id}")
                 return done_activity
-                
+                    
         except Exception as e:
             _logger.error(f"Failed to create done activity from {activity.id}: {e}")
+            # Rollback will happen automatically due to savepoint
             return False
 
     @api.model
