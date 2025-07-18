@@ -47,7 +47,7 @@
         </record>
 
 		    <record id="group_asi_purchase_request" model="res.groups">
-		        <field name="name">Purchase Request)</field>
+		        <field name="name">Purchase Request</field>
 		        <field name="category_id" ref="v16_asi.module_category_other_asi"/>	        
 		    </record>
 

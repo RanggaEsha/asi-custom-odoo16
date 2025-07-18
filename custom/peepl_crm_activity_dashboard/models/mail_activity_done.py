@@ -86,30 +86,63 @@ class MailActivityDone(models.Model):
     def create_from_activity(self, activity, feedback=None, attachment_ids=None):
         """Create a done activity record from a mail.activity before it's deleted"""
         if not activity or activity.res_model != 'crm.lead':
+            _logger.warning(f"Invalid activity for done record: {activity}")
+            return False
+        
+        # Ensure we have a valid lead
+        lead = self.env['crm.lead'].browse(activity.res_id)
+        if not lead.exists():
+            _logger.warning(f"Lead {activity.res_id} not found for activity {activity.id}")
             return False
             
-        vals = {
-            'activity_type_id': activity.activity_type_id.id,
-            'summary': activity.summary or activity.activity_type_id.name,
-            'note': activity.note,
-            'date_deadline': activity.date_deadline,
-            'date_done': fields.Date.context_today(self),
-            'user_id': activity.user_id.id,
-            'completed_by_user_id': self.env.user.id,
-            'request_partner_id': activity.request_partner_id.id if activity.request_partner_id else False,
-            'priority': getattr(activity, 'priority', '1'),
-            'lead_id': activity.res_id,
-            'feedback': feedback,
-            'original_activity_id': activity.id,
-        }
-        
-        done_activity = self.create(vals)
-        
-        # Link attachments if provided
-        if attachment_ids:
-            done_activity.attachment_ids = [(6, 0, attachment_ids)]
+        try:
+            # Prepare values for the done activity record
+            vals = {
+                'activity_type_id': activity.activity_type_id.id,
+                'summary': activity.summary or activity.activity_type_id.name,
+                'note': activity.note,
+                'date_deadline': activity.date_deadline,
+                'date_done': fields.Date.context_today(self),
+                'user_id': activity.user_id.id,
+                'completed_by_user_id': self.env.user.id,
+                'request_partner_id': activity.request_partner_id.id if activity.request_partner_id else False,
+                'priority': getattr(activity, 'priority', '1'),
+                'lead_id': activity.res_id,
+                'feedback': feedback,
+                'original_activity_id': activity.id,
+            }
             
-        return done_activity
+            # Create the done activity record with transaction safety
+            with self.env.cr.savepoint():
+                done_activity = self.create(vals)
+                
+                # Link attachments if provided
+                if attachment_ids:
+                    # Ensure attachments are valid
+                    valid_attachments = self.env['ir.attachment'].browse(attachment_ids).exists()
+                    if valid_attachments:
+                        done_activity.attachment_ids = [(6, 0, valid_attachments.ids)]
+                
+                _logger.info(f"Successfully created done activity {done_activity.id} from activity {activity.id}")
+                return done_activity
+                
+        except Exception as e:
+            _logger.error(f"Failed to create done activity from {activity.id}: {e}")
+            return False
+
+    @api.model
+    def create(self, vals):
+        """Override create to add validation and logging"""
+        # Validate required fields
+        if not vals.get('lead_id'):
+            raise ValueError("Lead ID is required for done activity")
+        
+        if not vals.get('activity_type_id'):
+            raise ValueError("Activity type is required for done activity")
+        
+        result = super().create(vals)
+        _logger.info(f"Created done activity record {result.id} for lead {vals.get('lead_id')}")
+        return result
 
     def action_open_lead(self):
         """Action to open the related lead/opportunity"""
@@ -122,3 +155,34 @@ class MailActivityDone(models.Model):
             'view_mode': 'form',
             'target': 'current',
         }
+
+    def action_view_feedback(self):
+        """Action to view completion feedback in a popup"""
+        self.ensure_one()
+        
+        if not self.feedback:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Info',
+                    'message': 'No feedback was provided for this completed activity.',
+                    'type': 'info',
+                }
+            }
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'Feedback: {self.summary}',
+            'res_model': 'mail.activity.done',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'form_view_initial_mode': 'readonly'},
+        }
+
+    def unlink(self):
+        """Override unlink to log deletions"""
+        for record in self:
+            _logger.info(f"Deleting done activity {record.id} - {record.summary}")
+        return super().unlink()

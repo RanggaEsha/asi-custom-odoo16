@@ -64,7 +64,7 @@ class ActivityMarkDoneWizard(models.TransientModel):
         
         return result
 
-    def action_mark_done(self):
+    def action_mark_done_wizard(self):
         """Mark the activity as done with feedback and attachments"""
         self.ensure_one()
         
@@ -102,11 +102,20 @@ class ActivityMarkDoneWizard(models.TransientModel):
             )
             
             # Refresh the dashboard view
-            self.env['crm.activity.dashboard']._refresh_dashboard_view()
+            activity.write({
+                'state': 'done',
+                'date_done': fields.Date.context_today(self),
+            })
             
             # Return action to close wizard
             return {
-                'type': 'ir.actions.act_window_close',
+                'type': 'ir.actions.act_window',
+                'name': f'Feedback: {self.summary}',
+                'res_model': 'mail.activity.done',
+                'res_id': done_activity.id,
+                'view_mode': 'form',
+                'target': 'new',
+                'context': {'form_view_initial_mode': 'readonly'},
             }
             
         except Exception as e:

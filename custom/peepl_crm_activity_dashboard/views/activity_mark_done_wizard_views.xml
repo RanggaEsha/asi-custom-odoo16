@@ -35,7 +35,7 @@
                 </sheet>
                 
                 <footer>
-                    <button name="action_mark_done" string="Mark as Done" type="object" class="btn-primary"/>
+                    <button name="action_mark_done_wizard" string="Mark as Done" type="object" class="btn-primary"/>
                     <button name="action_cancel" string="Cancel" type="object" class="btn-secondary"/>
                 </footer>
             </form>

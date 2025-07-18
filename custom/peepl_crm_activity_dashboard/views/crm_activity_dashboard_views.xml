@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- CRM Activity Dashboard List View -->
+    <!-- Updated CRM Activity Dashboard List View -->
     <record id="view_crm_activity_dashboard_tree" model="ir.ui.view">
         <field name="name">crm.activity.dashboard.tree</field>
         <field name="model">crm.activity.dashboard</field>
@@ -26,6 +26,7 @@
                 <field name="activity_type_id" string="Activity Type"/>
                 <field name="summary" string="Summary" width="300px"/>
                 <field name="date_deadline" string="Due Date"/>
+                <field name="date_done" string="Completed" attrs="{'invisible': [('state', '!=', 'done')]}"/>
                 <field name="days_overdue" string="Days Overdue" 
                        attrs="{'invisible': [('state', '!=', 'overdue')]}"/>
                 
@@ -34,6 +35,8 @@
                 
                 <!-- User and Priority -->
                 <field name="user_id" string="Assigned To" widget="many2one_avatar_user"/>
+                <field name="completed_by_user_id" string="Completed By" widget="many2one_avatar_user"
+                       attrs="{'invisible': [('state', '!=', 'done')]}"/>
                 <field name="priority" string="Priority" widget="priority"/>
                 
                 <!-- Hidden fields for filtering -->
@@ -42,36 +45,43 @@
                 <field name="activity_id" invisible="1"/>
                 <field name="lead_id" invisible="1"/>
                 <field name="company_currency" invisible="1"/>
-                <field name="date_done" invisible="1"/>
+                <field name="record_source" invisible="1"/>
+                <field name="feedback" invisible="1"/>
+                <!-- <field name="attachment_ids" invisible="1"/> -->
             </tree>
         </field>
     </record>
 
-    <!-- CRM Activity Dashboard Form View -->
     <record id="view_crm_activity_dashboard_form" model="ir.ui.view">
         <field name="name">crm.activity.dashboard.form</field>
         <field name="model">crm.activity.dashboard</field>
         <field name="arch" type="xml">
             <form string="CRM Activity Details" create="false" edit="false">
                 <header>
-                    <button name="action_mark_done" 
-                            string="Mark as Done" 
+                    <button name="action_mark_done_dashboard" 
+                            string="Mark as Done Yaa" 
                             type="object" 
                             class="btn-primary"
-                            attrs="{'invisible': [('state', '=', 'done')]}"/>
+                            attrs="{'invisible': ['|', ('state', '=', 'done'), ('record_source', '=', 'history')]}"/>
                     <button name="action_schedule_next" 
                             string="Schedule Next" 
                             type="object" 
                             class="btn-secondary"
-                            attrs="{'invisible': [('state', '=', 'done')]}"/>
+                            attrs="{'invisible': ['|', ('state', '=', 'done'), ('record_source', '=', 'history')]}"/>
                     <button name="action_open_activity" 
                             string="Edit Activity" 
                             type="object" 
-                            class="btn-secondary"/>
+                            class="btn-secondary"
+                            attrs="{'invisible': [('record_source', '=', 'history')]}"/>
                     <button name="action_open_lead" 
                             string="Open Lead" 
                             type="object" 
                             class="btn-primary"/>
+                    <button name="action_view_attachments" 
+                            string="View Attachments" 
+                            type="object" 
+                            class="btn-secondary"
+                            attrs="{'invisible': [('state', '!=', 'done')]}"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 
@@ -85,6 +95,17 @@
                         </h2>
                     </div>
                     
+                    <!-- Completion Information for Done Activities -->
+                    <div class="alert alert-success" role="alert" attrs="{'invisible': [('state', '!=', 'done')]}">
+                        <h4><i class="fa fa-check-circle"/> Activity Completed</h4>
+                        <div attrs="{'invisible': [('date_done', '=', False)]}">
+                            <strong>Completed on:</strong> <field name="date_done" readonly="1"/> 
+                        </div>
+                        <div attrs="{'invisible': [('completed_by_user_id', '=', False)]}">
+                            <strong>Completed by:</strong> <field name="completed_by_user_id" readonly="1"/>
+                        </div>
+                    </div>
+                    
                     <group>
                         <group string="Activity Details">
                             <field name="activity_type_id"/>
@@ -94,6 +115,7 @@
                             <field name="priority" widget="priority"/>
                             <field name="user_id" widget="many2one_avatar_user"/>
                             <field name="request_partner_id"/>
+                            <field name="record_source" invisible="1"/>
                         </group>
                         
                         <group string="Lead/Opportunity Details">
@@ -113,8 +135,24 @@
                     </group>
                     
                     <notebook>
-                        <page string="Notes">
+                        <page string="Notes &amp; Feedback">
                             <field name="note" widget="html" readonly="1"/>
+                            
+                            <!-- Feedback Section for Completed Activities -->
+                            <div attrs="{'invisible': ['|', ('state', '!=', 'done'), ('feedback', '=', False)]}">
+                                <br/>
+                                <h3>Feedback</h3>
+                                <field name="feedback" widget="html" readonly="1"/>
+                            </div>
+                            
+                            <!-- Attachments Section for Completed Activities -->
+                            <div attrs="{'invisible': [('state', '!=', 'done')]}">
+                                <br/>
+                                <h3>Attachments</h3>
+                                <div class="oe_form_field">
+                                    <button name="action_view_attachments" string="View Attachments" type="object" class="btn-link"/>
+                                </div>
+                            </div>
                         </page>
                     </notebook>
                 </sheet>
@@ -122,7 +160,7 @@
         </field>
     </record>
 
-    <!-- CRM Activity Dashboard Search View -->
+    <!-- Updated Search View -->
     <record id="view_crm_activity_dashboard_search" model="ir.ui.view">
         <field name="name">crm.activity.dashboard.search</field>
         <field name="model">crm.activity.dashboard</field>
@@ -134,10 +172,13 @@
                 <field name="lead_name" string="Lead/Opportunity" 
                        filter_domain="[('lead_name', 'ilike', self)]"/>
                 <field name="user_id" string="Assigned To"/>
+                <field name="completed_by_user_id" string="Completed By"/>
                 <field name="team_id" string="Sales Team"/>
                 <field name="activity_type_id" string="Activity Type"/>
                 <field name="partner_id" string="Customer"/>
                 <field name="stage_id" string="Stage"/>
+                <field name="feedback" string="Feedback" 
+                       filter_domain="[('feedback', 'ilike', self)]"/>
                 
                 <!-- Status Filters -->
                 <separator/>
@@ -153,9 +194,19 @@
                 <filter name="planned" string="Planned" 
                         domain="[('state', '=', 'planned')]"
                         help="Future planned activities"/>
-                <filter name="done" string="Done" 
+                <filter name="done" string="Completed" 
                         domain="[('state', '=', 'done')]"
                         help="Completed activities"/>
+                
+                <separator/>
+                
+                <!-- Source Filters -->
+                <filter name="active_activities" string="Active Activities" 
+                        domain="[('record_source', '=', 'active')]"
+                        help="Currently active activities"/>
+                <filter name="completed_activities" string="Completed Activities" 
+                        domain="[('record_source', '=', 'history')]"
+                        help="Completed activities from history"/>
                 
                 <separator/>
                 
@@ -215,19 +266,15 @@
                 <filter name="high_priority" string="High Priority" 
                         domain="[('priority', 'in', ['2', '3'])]"
                         help="High and Very High priority activities"/>
-                
-                <!-- Active Filter -->
-                <separator/>
-                <filter name="active_activities" string="Active Activities" 
-                        domain="[('is_active', '=', True)]"
-                        help="Only active (not done) activities"/>
-                
+
                 <!-- Group By -->
                 <group expand="0" string="Group By">
                     <filter name="group_state" string="Status" 
                             domain="[]" context="{'group_by': 'state'}"/>
                     <filter name="group_user" string="Assigned To" 
                             domain="[]" context="{'group_by': 'user_id'}"/>
+                    <filter name="group_done_by" string="Completed By" 
+                            domain="[]" context="{'group_by': 'completed_by_user_id'}"/>
                     <filter name="group_team" string="Sales Team" 
                             domain="[]" context="{'group_by': 'team_id'}"/>
                     <filter name="group_activity_type" string="Activity Type" 
@@ -236,116 +283,16 @@
                             domain="[]" context="{'group_by': 'stage_id'}"/>
                     <filter name="group_deadline" string="Due Date" 
                             domain="[]" context="{'group_by': 'date_deadline'}"/>
+                    <filter name="group_completed_date" string="Completed Date" 
+                            domain="[]" context="{'group_by': 'date_done'}"/>
                     <filter name="group_priority" string="Priority" 
                             domain="[]" context="{'group_by': 'priority'}"/>
                     <filter name="group_lead_type" string="Lead Type" 
                             domain="[]" context="{'group_by': 'lead_type'}"/>
+                    <filter name="group_source" string="Source" 
+                            domain="[]" context="{'group_by': 'record_source'}"/>
                 </group>
             </search>
         </field>
     </record>
-
-    <!-- Dashboard Kanban View -->
-    <record id="view_crm_activity_dashboard_kanban" model="ir.ui.view">
-        <field name="name">crm.activity.dashboard.kanban</field>
-        <field name="model">crm.activity.dashboard</field>
-        <field name="arch" type="xml">
-            <kanban string="CRM Activities Dashboard" 
-                    create="false" 
-                    edit="false"
-                    default_group_by="state">
-                <field name="state"/>
-                <field name="activity_type_id"/>
-                <field name="summary"/>
-                <field name="lead_name"/>
-                <field name="user_id"/>
-                <field name="date_deadline"/>
-                <field name="days_overdue"/>
-                <field name="priority"/>
-                <field name="activity_color"/>
-                <field name="expected_revenue"/>
-                <field name="team_id"/>
-                <field name="partner_id"/>
-                
-                <templates>
-                    <t t-name="kanban-box">
-                        <div class="oe_kanban_card oe_kanban_global_click" 
-                             t-att-style="'border-left: 5px solid ' + record.activity_color.raw_value">
-                            <div class="oe_kanban_content">
-                                <div class="o_kanban_record_top">
-                                    <div class="o_kanban_record_headings">
-                                        <strong class="o_kanban_record_title">
-                                            <field name="summary"/>
-                                        </strong>
-                                        <br/>
-                                        <small class="text-muted">
-                                            <field name="lead_name"/>
-                                        </small>
-                                    </div>
-                                    <div class="o_kanban_record_body">
-                                        <div>
-                                            <i class="fa fa-calendar"/> 
-                                            <field name="date_deadline"/>
-                                            <t t-if="record.days_overdue.raw_value > 0">
-                                                <span class="text-danger">
-                                                    (<field name="days_overdue"/> days overdue)
-                                                </span>
-                                            </t>
-                                        </div>
-                                        <div>
-                                            <i class="fa fa-tag"/> 
-                                            <field name="activity_type_id"/>
-                                        </div>
-                                        <div t-if="record.partner_id.raw_value">
-                                            <i class="fa fa-building"/> 
-                                            <field name="partner_id"/>
-                                        </div>
-                                        <div t-if="record.expected_revenue.raw_value">
-                                            <i class="fa fa-money"/> 
-                                            <field name="expected_revenue" widget="monetary"/>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="oe_kanban_record_bottom">
-                                    <div class="oe_kanban_bottom_left">
-                                        <field name="priority" widget="priority"/>
-                                        <field name="user_id" widget="many2one_avatar_user"/>
-                                    </div>
-                                    <div class="oe_kanban_bottom_right">
-                                        <field name="team_id" groups="sales_team.group_sale_salesman_all_leads"/>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </t>
-                </templates>
-            </kanban>
-        </field>
-    </record>
-
-    <!-- Dashboard Pivot View -->
-    <record id="view_crm_activity_dashboard_pivot" model="ir.ui.view">
-        <field name="name">crm.activity.dashboard.pivot</field>
-        <field name="model">crm.activity.dashboard</field>
-        <field name="arch" type="xml">
-            <pivot string="CRM Activities Analysis">
-                <field name="user_id" type="row"/>
-                <field name="state" type="col"/>
-                <field name="activity_id" type="measure"/>
-            </pivot>
-        </field>
-    </record>
-
-    <!-- Dashboard Graph View -->
-    <record id="view_crm_activity_dashboard_graph" model="ir.ui.view">
-        <field name="name">crm.activity.dashboard.graph</field>
-        <field name="model">crm.activity.dashboard</field>
-        <field name="arch" type="xml">
-            <graph string="CRM Activities Statistics" type="bar">
-                <field name="state"/>
-                <field name="activity_id" type="measure"/>
-            </graph>
-        </field>
-    </record>
-
 </odoo>

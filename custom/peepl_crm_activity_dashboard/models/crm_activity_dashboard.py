@@ -67,7 +67,7 @@ class CrmActivityDashboard(models.Model):
     ], string='Source', readonly=True)
     completed_by_user_id = fields.Many2one('res.users', string='Completed By', readonly=True)
     feedback = fields.Html('Feedback', readonly=True)
-    attachment_ids = fields.Many2many('ir.attachment', string='Attachments', readonly=True)
+    # attachment_ids = fields.Many2many('ir.attachment', string='Attachments', readonly=True)
 
     def init(self):
         """Create the SQL view for the dashboard"""
@@ -256,6 +256,8 @@ class CrmActivityDashboard(models.Model):
             self.init()
             # Clear any cached data
             self.env.registry.clear_cache()
+            # Invalidate cache for this model
+            self.invalidate_cache()
         except Exception as e:
             _logger.warning(f"Failed to refresh dashboard view: {e}")
 
@@ -274,16 +276,27 @@ class CrmActivityDashboard(models.Model):
     def action_open_activity(self):
         """Action to open the activity form"""
         self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': 'Activity',
-            'res_model': 'mail.activity',
-            'res_id': self.activity_id,
-            'view_mode': 'form',
-            'target': 'new',
-        }
+        if self.record_source == 'active':
+            return {
+                'type': 'ir.actions.act_window',
+                'name': 'Activity',
+                'res_model': 'mail.activity',
+                'res_id': self.activity_id,
+                'view_mode': 'form',
+                'target': 'new',
+            }
+        else:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Info',
+                    'message': 'This activity has been completed and cannot be edited.',
+                    'type': 'info',
+                }
+            }
 
-    def action_mark_done(self):
+    def action_mark_done_dashboard(self):
         """Action to mark activity as done - opens wizard for feedback and attachments"""
         self.ensure_one()
         
@@ -326,9 +339,20 @@ class CrmActivityDashboard(models.Model):
     def action_schedule_next(self):
         """Action to schedule next activity"""
         self.ensure_one()
-        activity = self.env['mail.activity'].browse(self.activity_id)
-        if activity.exists():
-            return activity.action_feedback_schedule_next()
+        if self.record_source == 'active':
+            activity = self.env['mail.activity'].browse(self.activity_id)
+            if activity.exists():
+                return activity.action_feedback_schedule_next()
+        else:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Info',
+                    'message': 'Cannot schedule next activity for completed activities.',
+                    'type': 'info',
+                }
+            }
     
     def get_attachments(self):
         """Get attachments for done activities"""
@@ -394,7 +418,6 @@ class MailActivity(models.Model):
         # Refresh dashboard for CRM activities
         if vals.get('res_model') == 'crm.lead':
             self._refresh_dashboard_view()
-            self._notify_dashboard_update('create', result.ids)
         
         return result
 
@@ -405,20 +428,17 @@ class MailActivity(models.Model):
         
         if crm_activities:
             self._refresh_dashboard_view()
-            self._notify_dashboard_update('write', crm_activities.ids)
         
         return result
 
     def unlink(self):
         """Override unlink to refresh dashboard view and notify users"""
         crm_activities = self.filtered(lambda x: x.res_model == 'crm.lead')
-        activity_ids = crm_activities.ids
         
         result = super().unlink()
         
         if crm_activities:
             self._refresh_dashboard_view()
-            self._notify_dashboard_update('unlink', activity_ids)
         
         return result
 
@@ -429,7 +449,6 @@ class MailActivity(models.Model):
         
         if crm_activities:
             self._refresh_dashboard_view()
-            self._notify_dashboard_update('done', crm_activities.ids)
         
         return result
 
@@ -440,38 +459,16 @@ class MailActivity(models.Model):
         
         if crm_activities:
             self._refresh_dashboard_view()
-            self._notify_dashboard_update('schedule_next', crm_activities.ids)
         
         return result
 
     def _refresh_dashboard_view(self):
         """Refresh the dashboard SQL view"""
         try:
-            self.env['crm.activity.dashboard'].init()
-            # Clear any cached data
-            self.env.registry.clear_cache()
+            self.env['crm.activity.dashboard']._refresh_dashboard_view()
         except Exception as e:
             # Log error but don't break the activity operation
             _logger.warning(f"Failed to refresh dashboard view: {e}")
-
-    def _notify_dashboard_update(self, operation, activity_ids):
-        """Send real-time notifications to dashboard users - TEMPORARILY DISABLED"""
-        # Temporarily disabled to fix WebSocket connection issues
-        try:
-            _logger.info(f"Dashboard update: {operation} for activities {activity_ids}")
-            # Disable bus notifications temporarily
-            # self.env['bus.bus']._sendone(
-            #     'dashboard_crm_activity_update',
-            #     {
-            #         'type': 'activity_update',
-            #         'operation': operation,
-            #         'activity_ids': activity_ids,
-            #         'timestamp': fields.Datetime.now().isoformat(),
-            #     }
-            # )
-        except Exception as e:
-            # Log error but don't break the activity operation
-            _logger.warning(f"Failed to send dashboard notification: {e}")
 
 
 class CrmLead(models.Model):
