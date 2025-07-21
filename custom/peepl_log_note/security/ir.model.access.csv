@@ -1,2 +1,3 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-# Access to mail.message is managed by mail module and Odoo security. If you want to add custom rules, add them here.
+access_mail_message_partner_log_note,access_mail_message_partner_log_note,mail.model_mail_message,base.group_user,1,1,1,1
+access_mail_message_partner_log_note_portal,access_mail_message_partner_log_note_portal,mail.model_mail_message,base.group_portal,1,0,0,0

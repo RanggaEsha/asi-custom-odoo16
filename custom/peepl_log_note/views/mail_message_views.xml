@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Search view for log notes with advanced filtering -->
+        <record id="view_partner_log_note_search" model="ir.ui.view">
+            <field name="name">mail.message.partner.log.note.search</field>
+            <field name="model">mail.message</field>
+            <field name="arch" type="xml">
+                <search string="Search Log Notes">
+                    <!-- Search bar -->
+                    <field name="body" string="Content" filter_domain="[('body', 'ilike', self)]"/>
+                    <field name="author_id" string="Author"/>
+                    <field name="date" string="Date"/>
+                    <field name="subject" string="Subject"/>
+                    <field name="subtype_id" string="Subtype"/>
+                    
+                    <!-- Filters -->
+                    <separator/>
+                    <filter name="filter_notes" string="Notes" domain="[('subtype_id.name', '=', 'Note')]"/>
+                    <filter name="filter_discussions" string="Discussions" domain="[('subtype_id.name', '=', 'Discussions')]"/>
+                    <filter name="filter_activities" string="Activities" domain="[('subtype_id.name', 'ilike', 'Activity')]"/>
+                    <separator/>
+                    <filter name="filter_my_notes" string="My Notes" domain="[('author_id', '=', uid)]"/>
+                    <filter name="filter_with_attachments" string="With Attachments" domain="[('attachment_ids', '!=', False)]"/>
+                    
+                    <!-- Group by -->
+                    <group expand="0" string="Group By">
+                        <filter name="group_by_author" string="Author" context="{'group_by': 'author_id'}"/>
+                        <filter name="group_by_subtype" string="Subtype" context="{'group_by': 'subtype_id'}"/>
+                        <filter name="group_by_date" string="Date" context="{'group_by': 'date:day'}"/>
+                        <filter name="group_by_month" string="Month" context="{'group_by': 'date:month'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
+        <!-- Tree view for log notes dashboard -->
+        <record id="view_partner_log_note_tree" model="ir.ui.view">
+            <field name="name">mail.message.partner.log.note.tree</field>
+            <field name="model">mail.message</field>
+            <field name="arch" type="xml">
+                <tree string="Log Notes" 
+                      create="true" 
+                      delete="true" 
+                      multi_edit="1"
+                      sample="1"
+                      default_order="date desc">
+                    
+                    <!-- Fields -->
+                    <field name="date" string="Date"/>
+                    <field name="author_id" string="Author"/>
+                    <field name="subtype_id" string="Subtype" optional="show"/>
+                    <field name="subject" string="Subject" optional="show"/>
+                    <field name="body" string="Content" widget="html_simple"/>
+                    <field name="attachment_ids" string="Attachments" widget="many2many_tags" optional="show"/>
+                    
+                    <!-- Hidden fields for functionality -->
+                    <field name="model" invisible="1"/>
+                    <field name="res_id" invisible="1"/>
+                    <field name="message_type" invisible="1"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Form view for creating/editing log notes -->
+        <record id="view_partner_log_note_form" model="ir.ui.view">
+            <field name="name">mail.message.partner.log.note.form</field>
+            <field name="model">mail.message</field>
+            <field name="arch" type="xml">
+                <form string="Log Note">
+                    <sheet>
+                        <group>
+                            <group>
+                                <field name="subtype_id" string="Subtype"/>
+                                <field name="subject" string="Subject" placeholder="Optional subject..."/>
+                            </group>
+                            <group>
+                                <field name="author_id" string="Author" readonly="1"/>
+                                <field name="date" string="Date" readonly="1"/>
+                                <field name="model" invisible="1"/>
+                                <field name="res_id" invisible="1"/>
+                                <field name="message_type" invisible="1"/>
+                            </group>
+                        </group>
+                        
+                        <separator string="Content"/>
+                        <field name="body" widget="html" placeholder="Enter your log note content here..."/>
+                        
+                        <separator string="Attachments"/>
+                        <field name="attachment_ids" widget="many2many_binary" string="Files"/>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Action for log note dashboard -->
+        <record id="action_partner_log_note_dashboard" model="ir.actions.act_window">
+            <field name="name">Partner Log Notes</field>
+            <field name="res_model">mail.message</field>
+            <field name="view_mode">tree,form</field>
+            <field name="view_ids" eval="[(5, 0, 0),
+                (0, 0, {'view_mode': 'tree', 'view_id': ref('view_partner_log_note_tree')}),
+                (0, 0, {'view_mode': 'form', 'view_id': ref('view_partner_log_note_form')})]"/>
+            <field name="search_view_id" ref="view_partner_log_note_search"/>
+            <field name="context">{
+                'default_model': 'res.partner',
+                'default_message_type': 'comment',
+                'search_default_group_by_date': 1,
+            }</field>
+            <field name="domain">[
+                ('model', '=', 'res.partner'),
+                ('message_type', '=', 'comment')
+            ]</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No log notes found!
+                </p>
+                <p>
+                    Click <b>Create</b> to add your first log note for this partner.
+                    This dashboard shows all log notes (all subtypes) including Notes, 
+                    Discussions, Activities, and any custom log note types.
+                </p>
+            </field>
+        </record>
+
+    </data>
+</odoo>

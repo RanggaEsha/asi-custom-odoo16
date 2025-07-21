@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Inherit res.partner form to add log notes smart button -->
+        <record id="view_partner_form_inherit_log_note" model="ir.ui.view">
+            <field name="name">res.partner.form.inherit.log.note</field>
+            <field name="model">res.partner</field>
+            <field name="inherit_id" ref="base.view_partner_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//div[contains(@class,'oe_button_box')]" position="inside">
+                    <button name="action_open_log_note_dashboard" 
+                            type="object" 
+                            class="oe_stat_button" 
+                            icon="fa-sticky-note-o"
+                            context="{'search_default_group_by_date': 1}">
+                        <field name="log_note_count" widget="statinfo" string="Log Notes"/>
+                    </button>
+                </xpath>
+                <!-- Add refresh button near the log notes button -->
+                <xpath expr="//button[@name='action_open_log_note_dashboard']" position="after">
+                    <button name="refresh_log_note_count" 
+                            type="object" 
+                            class="btn btn-sm btn-link text-muted" 
+                            title="Refresh log note count if it seems incorrect"
+                            groups="base.group_user">
+                        <i class="fa fa-refresh"/> Refresh
+                    </button>
+                </xpath>
+            </field>
+        </record>
+
+    </data>
+</odoo>

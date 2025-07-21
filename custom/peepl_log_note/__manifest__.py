@@ -1,35 +1,43 @@
 # -*- coding: utf-8 -*-
 {
-    'name': "peepl_log_note",
+    'name': "Partner Log Note Dashboard",
 
     'summary': """
-        Short (1 phrase/line) summary of the module's purpose, used as
-        subtitle on modules listing or apps.openerp.com""",
+        Searchable dashboard for managing partner log notes with real-time updates and advanced filtering""",
 
     'description': """
-        Long description of module's purpose
+This module provides a comprehensive dashboard for managing log notes on partners.
+
+Key Features:
+- Smart button on partner form for quick access
+- Tree view with search and filter capabilities  
+- Real-time updates without page refresh
+- Add, edit, delete log notes directly from dashboard
+- Batch operations for multiple log notes
+- Attachment support with download/view options
+- Respects Odoo access rights and security
+- Full-text search in log note content
+- Filter by author, date, and content
     """,
 
-    'author': "My Company",
+    'author': "Your Company",
     'website': "https://www.yourcompany.com",
 
-    # Categories can be used to filter modules in modules listing
-    # Check https://github.com/odoo/odoo/blob/16.0/odoo/addons/base/data/ir_module_category_data.xml
-    # for the full list
-    'category': 'Uncategorized',
-    'version': '0.1',
+    'category': 'Sales/CRM',
+    'version': '1.0.0',
 
-    # any module necessary for this one to work correctly
-    'depends': ['base', 'mail'],
+    'depends': ['base', 'mail', 'contacts'],
 
-    # always loaded
     'data': [
-        # 'security/ir.model.access.csv',
-        'views/views.xml',
-        'views/templates.xml',
+        'security/ir.model.access.csv',
+        'views/mail_message_views.xml', 
+        'views/res_partner.xml',
+        'data/server_actions.xml',
     ],
-    # only loaded in demonstration mode
-    'demo': [
-        'demo/demo.xml',
-    ],
+    
+    'demo': [],
+    
+    'installable': True,
+    'application': False,
+    'auto_install': False,
 }
