@@ -63,25 +63,10 @@
                             type="object" 
                             class="btn-primary"
                             attrs="{'invisible': ['|', ('state', '=', 'done'), ('record_source', '=', 'history')]}"/>
-                    <button name="action_schedule_next" 
-                            string="Schedule Next" 
-                            type="object" 
-                            class="btn-secondary"
-                            attrs="{'invisible': ['|', ('state', '=', 'done'), ('record_source', '=', 'history')]}"/>
-                    <button name="action_open_activity" 
-                            string="Edit Activity" 
-                            type="object" 
-                            class="btn-secondary"
-                            attrs="{'invisible': [('record_source', '=', 'history')]}"/>
                     <button name="action_open_lead" 
                             string="Open Lead" 
                             type="object" 
                             class="btn-primary"/>
-                    <button name="action_view_attachments" 
-                            string="View Attachments" 
-                            type="object" 
-                            class="btn-secondary"
-                            attrs="{'invisible': [('state', '!=', 'done')]}"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 
@@ -143,15 +128,6 @@
                                 <br/>
                                 <h3>Feedback</h3>
                                 <field name="feedback" widget="html" readonly="1"/>
-                            </div>
-                            
-                            <!-- Attachments Section for Completed Activities -->
-                            <div attrs="{'invisible': [('state', '!=', 'done')]}">
-                                <br/>
-                                <h3>Attachments</h3>
-                                <div class="oe_form_field">
-                                    <button name="action_view_attachments" string="View Attachments" type="object" class="btn-link"/>
-                                </div>
                             </div>
                         </page>
                     </notebook>

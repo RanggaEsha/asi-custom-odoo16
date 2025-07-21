@@ -15,8 +15,7 @@ class ActivityMarkDoneWizard(models.TransientModel):
         required=True
     )
     
-    # CHANGED: Store activity data as plain fields instead of references
-    # This prevents issues when the activity gets deleted
+    # Store activity data as plain fields instead of references
     activity_id_original = fields.Integer('Original Activity ID', required=True)
     activity_type_id = fields.Many2one('mail.activity.type', string='Activity Type', readonly=True)
     summary = fields.Char('Summary', readonly=True)
@@ -31,7 +30,7 @@ class ActivityMarkDoneWizard(models.TransientModel):
         ('1', 'Normal'),
         ('2', 'High'),
         ('3', 'Very High')
-    ], string='Priority', readonly=True)
+    ], string='Priority', readonly=True, default='1')
     
     # Input fields
     feedback = fields.Html('Feedback', help='Provide feedback for this completed activity')
@@ -49,28 +48,31 @@ class ActivityMarkDoneWizard(models.TransientModel):
         """Set default values from context"""
         result = super().default_get(fields_list)
         
-        # Get the activity dashboard record from context
-        dashboard_id = self.env.context.get('active_id')
-        if dashboard_id:
-            dashboard = self.env['crm.activity.dashboard'].browse(dashboard_id)
-            if dashboard.exists():
-                # Get the actual activity record
-                activity = self.env['mail.activity'].browse(dashboard.activity_id)
-                if activity.exists():
-                    # Store all activity data as plain fields (no references)
-                    result.update({
-                        'activity_dashboard_id': dashboard.id,
-                        'activity_id_original': activity.id,
-                        'activity_type_id': activity.activity_type_id.id,
-                        'summary': activity.summary or activity.activity_type_id.name,
-                        'lead_name': dashboard.lead_name,
-                        'lead_id': dashboard.lead_id,
-                        'user_id': activity.user_id.id,
-                        'date_deadline': activity.date_deadline,
-                        'note': activity.note,
-                        'request_partner_id': activity.request_partner_id.id if activity.request_partner_id else False,
-                        'priority': getattr(activity, 'priority', '1'),
-                    })
+        try:
+            # Get the activity dashboard record from context
+            dashboard_id = self.env.context.get('active_id')
+            if dashboard_id:
+                dashboard = self.env['crm.activity.dashboard'].browse(dashboard_id)
+                if dashboard.exists():
+                    # Get the actual activity record
+                    activity = self.env['mail.activity'].browse(dashboard.activity_id)
+                    if activity.exists():
+                        # Store all activity data as plain fields (no references)
+                        result.update({
+                            'activity_dashboard_id': dashboard.id,
+                            'activity_id_original': activity.id,
+                            'activity_type_id': activity.activity_type_id.id,
+                            'summary': activity.summary or activity.activity_type_id.name,
+                            'lead_name': dashboard.lead_name,
+                            'lead_id': dashboard.lead_id,
+                            'user_id': activity.user_id.id,
+                            'date_deadline': activity.date_deadline,
+                            'note': activity.note,
+                            'request_partner_id': activity.request_partner_id.id if activity.request_partner_id else False,
+                            'priority': '1',  # Default priority
+                        })
+        except Exception as e:
+            _logger.error(f"Error in wizard default_get: {e}")
         
         return result
 
@@ -78,20 +80,22 @@ class ActivityMarkDoneWizard(models.TransientModel):
         """Mark the activity as done with feedback and attachments"""
         self.ensure_one()
         
-        # Get the activity record using the stored ID
-        activity = self.env['mail.activity'].browse(self.activity_id_original)
-        if not activity.exists():
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': 'Error',
-                    'message': 'Activity not found or already completed.',
-                    'type': 'warning',
-                }
-            }
-        
         try:
+            # Get the activity record using the stored ID
+            activity = self.env['mail.activity'].browse(self.activity_id_original)
+            if not activity.exists():
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': 'Error',
+                        'message': 'Activity not found or already completed.',
+                        'type': 'warning',
+                    }
+                }
+            
+            _logger.info(f"Starting to mark activity {activity.id} as done")
+            
             # STEP 1: Create the done activity record FIRST (before deleting the original)
             done_activity = self.env['mail.activity.done'].create_from_activity(
                 activity, 
@@ -100,51 +104,84 @@ class ActivityMarkDoneWizard(models.TransientModel):
             )
             
             if not done_activity:
-                raise ValueError("Failed to create done activity record")
+                _logger.error(f"Failed to create done activity record for activity {activity.id}")
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': 'Error',
+                        'message': 'Failed to create completed activity record. Please check the logs.',
+                        'type': 'danger',
+                    }
+                }
             
-            _logger.info(f"Created done activity record {done_activity.id} for activity {activity.id}")
+            _logger.info(f"Successfully created done activity record {done_activity.id}")
             
             # STEP 2: Prepare attachment IDs for the action_feedback call
             attachment_ids = []
             if self.attachment_ids:
                 for attachment in self.attachment_ids:
                     # Create copies for the mail message
-                    message_attachment = attachment.copy({
-                        'res_model': 'mail.message',
-                        'res_id': 0,
-                    })
-                    attachment_ids.append(message_attachment.id)
+                    try:
+                        message_attachment = attachment.copy({
+                            'res_model': 'mail.message',
+                            'res_id': 0,
+                        })
+                        attachment_ids.append(message_attachment.id)
+                    except Exception as e:
+                        _logger.warning(f"Failed to copy attachment {attachment.id}: {e}")
             
             # STEP 3: Store summary for success message (before activity is deleted)
             activity_summary = self.summary
             
             # STEP 4: Mark the original activity as done (this will DELETE the activity)
-            activity.action_feedback(
+            _logger.info(f"Calling action_feedback on activity {activity.id}")
+            message_id = activity.action_feedback(
                 feedback=self.feedback,
                 attachment_ids=attachment_ids if attachment_ids else None
             )
-            
-            # STEP 5: Force refresh the dashboard view
-            self.env['crm.activity.dashboard']._refresh_dashboard_view()
-            
-            # STEP 6: Return success and close wizard
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': 'Success',
-                    'message': f'Activity "{activity_summary}" has been marked as done!',
+
+            _logger.info(f"Activity feedback completed, message_id: {message_id}")
+
+            _logger.info(f"Activity feedback completed, message_id: {message_id}")
+
+            # Send success notification via bus
+            self.env['bus.bus']._sendone(
+                self.env.user.partner_id,
+                'simple_notification',
+                {
+                    'title': 'Activity Completed',
+                    'message': f'Activity "{activity_summary}" has been marked as done successfully.',
                     'type': 'success',
                     'sticky': False,
-                    'next': {
-                        'type': 'ir.actions.client',
-                        'tag': 'reload'  # This will refresh the dashboard view
-                    }
+                }
+            )
+
+            # Get lead information for navigation
+            lead_id = self.lead_id
+            if not lead_id and hasattr(activity, 'res_id') and activity.res_model == 'crm.lead':
+                lead_id = activity.res_id
+
+            # Navigate directly to the lead with the log note focused
+            return {
+                'type': 'ir.actions.act_window',
+                'name': 'Lead/Opportunity',
+                'res_model': 'crm.lead',
+                'res_id': lead_id,
+                'view_mode': 'form',
+                'target': 'current',
+                'context': {
+                    'default_type': 'lead',
+                    'focus_message_id': message_id,
+                    'open_chatter': True,
+                    'scroll_to_message': message_id,
+                    'highlight_message': message_id,
                 }
             }
-            
         except Exception as e:
             _logger.error(f"Error marking activity as done: {e}")
+            import traceback
+            _logger.error(f"Full traceback: {traceback.format_exc()}")
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',

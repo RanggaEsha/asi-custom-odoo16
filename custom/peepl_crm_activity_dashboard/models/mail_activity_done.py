@@ -28,21 +28,21 @@ class MailActivityDone(models.Model):
         ('3', 'Very High')
     ], string='Priority', default='1')
     
-    # Lead/Opportunity related fields
+    # Lead/Opportunity related fields - Store data directly instead of using related fields
     lead_id = fields.Many2one('crm.lead', string='Lead/Opportunity', required=True, ondelete='cascade')
-    lead_name = fields.Char('Lead Name', related='lead_id.name', store=True)
-    lead_email = fields.Char('Email', related='lead_id.email_from', store=True)
-    lead_phone = fields.Char('Phone', related='lead_id.phone', store=True)
-    partner_id = fields.Many2one('res.partner', string='Customer', related='lead_id.partner_id', store=True)
-    stage_id = fields.Many2one('crm.stage', string='Stage', related='lead_id.stage_id', store=True)
-    team_id = fields.Many2one('crm.team', string='Sales Team', related='lead_id.team_id', store=True)
-    expected_revenue = fields.Monetary('Expected Revenue', related='lead_id.expected_revenue', store=True, currency_field='company_currency')
-    probability = fields.Float('Probability (%)', related='lead_id.probability', store=True)
-    company_currency = fields.Many2one('res.currency', related='lead_id.company_currency', store=True)
+    lead_name = fields.Char('Lead Name', store=True)
+    lead_email = fields.Char('Email', store=True)
+    lead_phone = fields.Char('Phone', store=True)
+    partner_id = fields.Many2one('res.partner', string='Customer', store=True)
+    stage_id = fields.Many2one('crm.stage', string='Stage', store=True)
+    team_id = fields.Many2one('crm.team', string='Sales Team', store=True)
+    expected_revenue = fields.Monetary('Expected Revenue', store=True, currency_field='company_currency')
+    probability = fields.Float('Probability (%)', store=True)
+    company_currency = fields.Many2one('res.currency', string='Currency', store=True)
     lead_type = fields.Selection([
         ('lead', 'Lead'),
         ('opportunity', 'Opportunity')
-    ], string='Type', related='lead_id.type', store=True)
+    ], string='Type', store=True)
     
     # Completion specific fields
     feedback = fields.Html('Feedback', help='Feedback provided when marking activity as done')
@@ -96,54 +96,66 @@ class MailActivityDone(models.Model):
             return False
             
         try:
-            # CRITICAL: Use a savepoint to ensure atomicity
-            with self.env.cr.savepoint():
-                # Prepare values for the done activity record
-                vals = {
-                    'activity_type_id': activity.activity_type_id.id,
-                    'summary': activity.summary or activity.activity_type_id.name,
-                    'note': activity.note,
-                    'date_deadline': activity.date_deadline,
-                    'date_done': fields.Date.context_today(self),
-                    'user_id': activity.user_id.id,
-                    'completed_by_user_id': self.env.user.id,
-                    'request_partner_id': activity.request_partner_id.id if activity.request_partner_id else False,
-                    'priority': getattr(activity, 'priority', '1'),
-                    'lead_id': activity.res_id,
-                    'feedback': feedback,
-                    'original_activity_id': activity.id,
-                }
+            # Prepare values for the done activity record
+            vals = {
+                'activity_type_id': activity.activity_type_id.id,
+                'summary': activity.summary or activity.activity_type_id.name,
+                'note': activity.note or False,
+                'date_deadline': activity.date_deadline,
+                'date_done': fields.Date.context_today(self),
+                'user_id': activity.user_id.id,
+                'completed_by_user_id': self.env.user.id,
+                'request_partner_id': activity.request_partner_id.id if activity.request_partner_id else False,
+                'priority': '1',  # Default priority since mail.activity might not have this field
+                'lead_id': lead.id,  # Pass the lead record ID, not activity.res_id
+                'feedback': feedback or False,
+                'original_activity_id': activity.id,
                 
-                # Create the done activity record
-                done_activity = self.create(vals)
-                
-                # Link attachments if provided
-                if attachment_ids:
-                    # Ensure attachments are valid and exist
-                    valid_attachments = self.env['ir.attachment'].browse(attachment_ids).exists()
-                    if valid_attachments:
-                        # Create copies of attachments for the done activity
-                        done_attachments = []
-                        for attachment in valid_attachments:
+                # Store lead data directly to avoid related field issues
+                'lead_name': lead.name,
+                'lead_email': lead.email_from,
+                'lead_phone': lead.phone,
+                'partner_id': lead.partner_id.id if lead.partner_id else False,
+                'stage_id': lead.stage_id.id if lead.stage_id else False,
+                'team_id': lead.team_id.id if lead.team_id else False,
+                'expected_revenue': lead.expected_revenue,
+                'probability': lead.probability,
+                'company_currency': lead.company_currency.id if lead.company_currency else False,
+                'lead_type': lead.type,
+            }
+            
+            # Create the done activity record
+            done_activity = self.create(vals)
+            
+            # Link attachments if provided
+            if attachment_ids:
+                # Ensure attachments are valid and exist
+                valid_attachments = self.env['ir.attachment'].browse(attachment_ids).exists()
+                if valid_attachments:
+                    # Create copies of attachments for the done activity
+                    done_attachments = []
+                    for attachment in valid_attachments:
+                        try:
                             done_attachment = attachment.copy({
                                 'res_model': 'mail.activity.done',
                                 'res_id': done_activity.id,
                                 'name': f"[DONE] {attachment.name}",
                             })
                             done_attachments.append(done_attachment.id)
-                        
-                        if done_attachments:
-                            done_activity.attachment_ids = [(6, 0, done_attachments)]
-                
-                # Force commit the done activity record before the original activity is deleted
-                self.env.cr.commit()
-                
-                _logger.info(f"Successfully created done activity {done_activity.id} from activity {activity.id}")
-                return done_activity
+                        except Exception as e:
+                            _logger.warning(f"Failed to copy attachment {attachment.id}: {e}")
                     
+                    if done_attachments:
+                        done_activity.attachment_ids = [(6, 0, done_attachments)]
+            
+            _logger.info(f"Successfully created done activity {done_activity.id} from activity {activity.id}")
+            return done_activity
+                
         except Exception as e:
             _logger.error(f"Failed to create done activity from {activity.id}: {e}")
-            # Rollback will happen automatically due to savepoint
+            # Log the full traceback for debugging
+            import traceback
+            _logger.error(f"Full traceback: {traceback.format_exc()}")
             return False
 
     @api.model
@@ -155,6 +167,11 @@ class MailActivityDone(models.Model):
         
         if not vals.get('activity_type_id'):
             raise ValueError("Activity type is required for done activity")
+        
+        # Ensure lead exists
+        lead = self.env['crm.lead'].browse(vals['lead_id'])
+        if not lead.exists():
+            raise ValueError(f"Lead with ID {vals['lead_id']} does not exist")
         
         result = super().create(vals)
         _logger.info(f"Created done activity record {result.id} for lead {vals.get('lead_id')}")

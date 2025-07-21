@@ -10,7 +10,7 @@
     'license': 'AGPL-3', 
 
     # any module necessary for this one to work correctly
-    'depends': ['base','account','sale','product','purchase','stock','l10n_id_efaktur','account_followup','web'],
+    'depends': ['base','bus','account','sale','product','purchase','stock','l10n_id_efaktur','account_followup','web'],
 
     # always loaded
     'data': [
