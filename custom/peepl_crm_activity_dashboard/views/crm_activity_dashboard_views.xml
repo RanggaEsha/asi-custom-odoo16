@@ -51,125 +51,21 @@
         </field>
     </record>
 
-    <!-- CRM Activity Dashboard Calendar View -->
+    
     <record id="view_crm_activity_dashboard_calendar" model="ir.ui.view">
-        <field name="name">crm.activity.dashboard.calendar</field>
-        <field name="model">crm.activity.dashboard</field>
-        <field name="arch" type="xml">
-            <calendar string="CRM Activities Calendar" 
-                      date_start="date_deadline"
-                      color="user_id"
-                      quick_add="False"
-                      create="false"
-                      edit="false"
-                      event_open_popup="true"
-                      mode="month"
-                      scales="day,week,month">
-                
-                <!-- Essential fields for calendar display -->
-                <field name="summary"/>
-                <field name="lead_name"/>
-                <field name="user_id"/>
-                <field name="activity_type_id"/>
-                <field name="state"/>
-                <field name="priority"/>
-                <field name="partner_id"/>
-                <field name="date_done"/>
-                <field name="completed_by_user_id"/>
-                <field name="record_source"/>
-                <field name="activity_color"/>
-                <field name="lead_type"/>
-                <field name="expected_revenue"/>
-                <field name="team_id"/>
-                <field name="activity_id"/>
-                <field name="lead_id"/>
-                <field name="days_overdue"/>
-                <field name="request_partner_id"/>
-                <field name="stage_id"/>
-                <field name="feedback"/>
-                
-                <!-- Calendar event template -->
-                <templates>
-                    <t t-name="calendar-box">
-                        <div class="o_calendar_event">
-                            
-                            <!-- Status Icon -->
-                            <div class="o_calendar_event_icon" style="float: left; margin-right: 5px;">
-                                <i class="fa fa-check-circle text-success" 
-                                   t-if="record.state.raw_value == 'done'" 
-                                   title="Completed"/>
-                                <i class="fa fa-exclamation-triangle text-danger" 
-                                   t-if="record.state.raw_value == 'overdue'" 
-                                   title="Overdue"/>
-                                <i class="fa fa-clock-o text-warning" 
-                                   t-if="record.state.raw_value == 'today'" 
-                                   title="Due Today"/>
-                                <i class="fa fa-calendar text-info" 
-                                   t-if="record.state.raw_value == 'tomorrow'" 
-                                   title="Due Tomorrow"/>
-                                <i class="fa fa-calendar-o text-muted" 
-                                   t-if="record.state.raw_value == 'planned'" 
-                                   title="Planned"/>
-                            </div>
-                            
-                            <!-- Activity Summary -->
-                            <div class="o_calendar_event_title">
-                                <strong t-esc="record.summary.value"/>
-                            </div>
-                            
-                            <!-- Lead/Opportunity Name -->
-                            <div class="o_calendar_event_subtitle" t-if="record.lead_name.raw_value">
-                                <small t-esc="record.lead_name.value"/>
-                            </div>
-                            
-                            <!-- Customer Name -->
-                            <div class="o_calendar_event_customer" t-if="record.partner_id.raw_value">
-                                <i class="fa fa-building-o"/> 
-                                <small t-esc="record.partner_id.value"/>
-                            </div>
-                            
-                            <!-- Activity Type -->
-                            <div class="o_calendar_event_type" t-if="record.activity_type_id.raw_value">
-                                <i class="fa fa-tasks"/> 
-                                <small t-esc="record.activity_type_id.value"/>
-                            </div>
-                            
-                            <!-- Revenue for Opportunities -->
-                            <div class="o_calendar_event_revenue" 
-                                 t-if="record.expected_revenue.raw_value and record.lead_type.raw_value == 'opportunity'">
-                                <i class="fa fa-money"/> 
-                                <small t-esc="record.expected_revenue.value"/>
-                            </div>
-                            
-                            <!-- Completion Info for Done Activities -->
-                            <div class="o_calendar_event_completion" 
-                                 t-if="record.state.raw_value == 'done'">
-                                <div t-if="record.date_done.raw_value">
-                                    <small class="text-success">
-                                        <i class="fa fa-check"/> 
-                                        Completed: <t t-esc="record.date_done.value"/>
-                                    </small>
-                                </div>
-                                <div t-if="record.completed_by_user_id.raw_value">
-                                    <small class="text-muted">
-                                        by <t t-esc="record.completed_by_user_id.value"/>
-                                    </small>
-                                </div>
-                            </div>
-                            
-                            <!-- Priority Stars -->
-                            <div class="o_calendar_event_priority" 
-                                 t-if="record.priority.raw_value and record.priority.raw_value != '1'">
-                                <i class="fa fa-star text-warning" t-if="record.priority.raw_value == '2'"/>
-                                <i class="fa fa-star text-danger" t-if="record.priority.raw_value == '3'"/>
-                            </div>
-                            
-                        </div>
-                    </t>
-                </templates>
-                
-            </calendar>
-        </field>
+                <field name="name">crm.activity.dashboard.calendar</field>
+                <field name="model">crm.activity.dashboard</field>
+                <field name="arch" type="xml">
+                        <calendar string="CRM Activities Calendar"
+                                date_start="date_deadline"
+                                color="state"
+                                event_open_popup="true">
+                                <field name="summary"/>
+                                <field name="user_id"/>
+                                <field name="date_deadline"/>
+                                <field name="state"/>
+                        </calendar>
+                </field>
     </record>
 
     <!-- Dashboard Kanban View -->
