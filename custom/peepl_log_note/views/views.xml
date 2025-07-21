@@ -1,60 +1,39 @@
 <odoo>
   <data>
-    <!-- explicit list view definition -->
-<!--
-    <record model="ir.ui.view" id="peepl_log_note.list">
-      <field name="name">peepl_log_note list</field>
-      <field name="model">peepl_log_note.peepl_log_note</field>
+    <!-- Tree view for log notes (mail.message) filtered for res.partner -->
+    <record id="view_partner_log_note_tree" model="ir.ui.view">
+      <field name="name">mail.message.partner.log.note.tree</field>
+      <field name="model">mail.message</field>
       <field name="arch" type="xml">
-        <tree>
-          <field name="name"/>
-          <field name="value"/>
-          <field name="value2"/>
+        <tree string="Log Notes" create="true" delete="true" editable="bottom">
+          <field name="date"/>
+          <field name="author_id"/>
+          <field name="body" widget="html"/>
+          <field name="attachment_ids" widget="many2many_binary"/>
         </tree>
       </field>
     </record>
--->
 
-    <!-- actions opening views on models -->
-<!--
-    <record model="ir.actions.act_window" id="peepl_log_note.action_window">
-      <field name="name">peepl_log_note window</field>
-      <field name="res_model">peepl_log_note.peepl_log_note</field>
-      <field name="view_mode">tree,form</field>
+    <!-- Action for log note dashboard -->
+    <record id="action_partner_log_note_dashboard" model="ir.actions.act_window">
+      <field name="name">Log Notes</field>
+      <field name="res_model">mail.message</field>
+      <field name="view_mode">tree</field>
+      <field name="view_id" ref="view_partner_log_note_tree"/>
+      <field name="context">{'default_model': 'res.partner'}</field>
+      <field name="domain">[('model','=','res.partner'),('message_type','=','comment'),('subtype_id.name','=','Note')]</field>
     </record>
--->
 
-    <!-- server action to the one above -->
-<!--
-    <record model="ir.actions.server" id="peepl_log_note.action_server">
-      <field name="name">peepl_log_note server</field>
-      <field name="model_id" ref="model_peepl_log_note_peepl_log_note"/>
-      <field name="state">code</field>
-      <field name="code">
-        action = {
-          "type": "ir.actions.act_window",
-          "view_mode": "tree,form",
-          "res_model": model._name,
-        }
+    <!-- Smart button on res.partner form -->
+    <record id="view_partner_form_inherit_log_note" model="ir.ui.view">
+      <field name="name">res.partner.form.inherit.log.note</field>
+      <field name="model">res.partner</field>
+      <field name="inherit_id" ref="base.view_partner_form"/>
+      <field name="arch" type="xml">
+        <xpath expr="//div[contains(@class,'oe_button_box') and @name='button_box']" position="inside">
+          <button name="action_open_log_note_dashboard" type="object" class="oe_stat_button" icon="fa-sticky-note" string="Log Notes"/>
+        </xpath>
       </field>
     </record>
--->
-
-    <!-- Top menu item -->
-<!--
-    <menuitem name="peepl_log_note" id="peepl_log_note.menu_root"/>
--->
-    <!-- menu categories -->
-<!--
-    <menuitem name="Menu 1" id="peepl_log_note.menu_1" parent="peepl_log_note.menu_root"/>
-    <menuitem name="Menu 2" id="peepl_log_note.menu_2" parent="peepl_log_note.menu_root"/>
--->
-    <!-- actions -->
-<!--
-    <menuitem name="List" id="peepl_log_note.menu_1_list" parent="peepl_log_note.menu_1"
-              action="peepl_log_note.action_window"/>
-    <menuitem name="Server to list" id="peepl_log_note" parent="peepl_log_note.menu_2"
-              action="peepl_log_note.action_server"/>
--->
   </data>
 </odoo>

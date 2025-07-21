@@ -1,18 +1,28 @@
 # -*- coding: utf-8 -*-
 
-# from odoo import models, fields, api
+
+from odoo import models, fields, api, _
 
 
-# class peepl_log_note(models.Model):
-#     _name = 'peepl_log_note.peepl_log_note'
-#     _description = 'peepl_log_note.peepl_log_note'
+class ResPartner(models.Model):
+    _inherit = 'res.partner'
 
-#     name = fields.Char()
-#     value = fields.Integer()
-#     value2 = fields.Float(compute="_value_pc", store=True)
-#     description = fields.Text()
-#
-#     @api.depends('value')
-#     def _value_pc(self):
-#         for record in self:
-#             record.value2 = float(record.value) / 100
+    def action_open_log_note_dashboard(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Log Notes'),
+            'res_model': 'mail.message',
+            'view_mode': 'tree',
+            'target': 'current',
+            'domain': [
+                ('model', '=', 'res.partner'),
+                ('res_id', '=', self.id),
+                ('message_type', '=', 'comment'),
+                ('subtype_id.name', '=', 'Note'),
+            ],
+            'context': {
+                'default_model': 'res.partner',
+                'default_res_id': self.id,
+            },
+        }
