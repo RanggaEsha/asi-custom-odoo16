@@ -1,7 +1,7 @@
 <odoo>
-	<data>
-		
-		<record id="view_crm_task_form" model="ir.ui.view">
+    <data>
+        
+        <record id="view_crm_task_form" model="ir.ui.view">
             <field name="name">crm.task.wizard</field>
             <field name="model">crm.task.wizard</field>
             <field name="arch" type="xml">
@@ -20,7 +20,7 @@
                         </group>
                     </group>
                     <footer>
-                    	<button name="create_task" string="Create Task" type="object" class="btn-primary"/>
+                        <button name="create_task" string="Create Task" type="object" class="btn-primary"/>
                         <button string="Cancel" class="btn-secondary" special="cancel"/>
                     </footer>
                 </form>
@@ -35,8 +35,8 @@
             <field name="view_id" ref="view_crm_task_form"/>
             <field name="target">new</field>
         </record>
-		
-		<record id="action_view_task_id" model="ir.actions.act_window">
+        
+        <record id="action_view_task_id" model="ir.actions.act_window">
             <field name="name">Tasks</field>
             <field name="res_model">project.task</field>
             <field name="view_mode">kanban,tree,form,calendar,pivot,graph</field>
@@ -108,13 +108,30 @@
                 </p>
             </field>
         </record>
-		
-		
-		<record id="crm_inherit_form" model="ir.ui.view">
-			<field name="name">Crm Lead</field>
-			<field name="model">crm.lead</field>
-			<field name="inherit_id" ref="crm.crm_lead_view_form" />
-			<field name="arch" type="xml">
+
+        <!-- Action for viewing participants -->
+        <record id="action_view_participants" model="ir.actions.act_window">
+            <field name="name">Participants</field>
+            <field name="res_model">crm.participant</field>
+            <field name="view_mode">tree,form</field>
+            <field name="domain">[('lead_id', '=', active_id)]</field>
+            <field name="context">{'default_lead_id': active_id, 'search_default_active': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No participants yet!
+                </p>
+                <p>
+                    Add participants for this lead/opportunity. You can also import participant data from Excel or CSV files.
+                </p>
+            </field>
+        </record>
+        
+        
+        <record id="crm_inherit_form" model="ir.ui.view">
+            <field name="name">Crm Lead</field>
+            <field name="model">crm.lead</field>
+            <field name="inherit_id" ref="crm.crm_lead_view_form" />
+            <field name="arch" type="xml">
                 <!-- Add handover fields to the form -->
                 <field name="team_id" position="after">
                     <field name="parent_lead_id" attrs="{'invisible': [('is_handover_lead', '=', False)]}" readonly="1"/>
@@ -122,9 +139,23 @@
                     <field name="is_handover_lead" invisible="1"/>
                     <field name="is_won_stage" invisible="1"/>
                 </field>
-                
-			<div name="button_box" position="inside">
-				<button class="oe_stat_button" type="action" name="%(action_view_task_id)d"
+
+                <!-- Add participant data field using xpath -->
+                <xpath expr="//field[@name='tag_ids']" position="after">
+                    <group>
+                        <field name="has_participant_data" string="Has Participant Data"/>
+                    </group>
+                    <group string="Assessment Information" attrs="{'invisible': [('has_participant_data', '=', False)]}">
+                        <field name="test_start_date" string="Start Date"/>
+                        <field name="test_finish_date" string="End Date"/>
+                        <field name="type_of_assessment" string="Type of Assessment"/>
+                        <field name="assessment_language" string="Assessment Language"/>
+                        <field name="purpose" string="Purpose" placeholder="What is the purpose of this assessment?"/>
+                    </group>
+                </xpath>
+                 
+            <div name="button_box" position="inside">
+                <button class="oe_stat_button" type="action" name="%(action_view_task_id)d"
                         context="{'default_partner_id': partner_id }"
                         icon="fa-tasks">
                         <field  string="Tasks" name="task_number" widget="statinfo"/>
@@ -136,16 +167,80 @@
                         attrs="{'invisible': [('handover_number', '=', 0)]}">
                         <field  string="Handovers" name="handover_number" widget="statinfo"/>
                     </button>
+                    <button class="oe_stat_button" type="action" name="%(action_view_participants)d"
+                        context="{'default_lead_id': active_id}"
+                        icon="fa-users"
+                        attrs="{'invisible': [('has_participant_data', '=', False)]}">
+                        <field string="Participants" name="participant_count" widget="statinfo"/>
+                    </button>
                   </div>
-				<button name="%(crm.action_crm_lead2opportunity_partner)d" position="after">
-					<button name="%(action_view_crm_task_form)d" string="Create Task" type="action" class="btn-primary"/>
+                <button name="%(crm.action_crm_lead2opportunity_partner)d" position="after">
+                    <button name="%(action_view_crm_task_form)d" string="Create Task" type="action" class="btn-primary"/>
                     <button name="action_handover_to_solution_delivery" string="Handover to Team" type="object" 
                             class="btn-secondary"
                             groups="peepl_crm.group_handover_manager"
                             attrs="{'invisible': ['|', ('is_won_stage', '!=', True), ('is_handover_lead', '=', True)]}"/>
-				</button>
-			</field>
-		</record>
+                </button>
+
+                <!-- Add Participant Data section in notebook -->
+                <xpath expr="//page[@name='lead']" position="after">
+                    <page string="Participant Data" name="participant_data" attrs="{'invisible': [('has_participant_data', '=', False)]}">
+                        <div class="alert alert-info" role="alert">
+                            <strong>Import Data:</strong> You can import participant data from Excel or CSV files. 
+                            Go to CRM → Participants menu and use the Import feature. Required columns: first_name, last_name
+                        </div>
+                        <field name="participant_ids" context="{'default_lead_id': active_id}" nolabel="1">
+                            <tree editable="bottom" decoration-muted="active == False">
+                                <field name="sequence" widget="handle"/>
+                                <field name="first_name" required="1"/>
+                                <field name="last_name" required="1"/>
+                                <field name="gender"/>
+                                <field name="email_address"/>
+                                <field name="mobile_phone"/>
+                                <field name="job_title_requiring_assessment"/>
+                                <field name="position_level"/>
+                                <field name="notes"/>
+                                <field name="active" optional="hide"/>
+                            </tree>
+                            <form>
+                                <sheet>
+                                    <div class="oe_button_box" name="button_box">
+                                        <button name="toggle_active" type="object"
+                                                class="oe_stat_button" icon="fa-archive">
+                                            <field name="active" widget="boolean_button"
+                                                   options='{"terminology": "archive"}'/>
+                                        </button>
+                                    </div>
+                                    <div class="oe_title">
+                                        <h1>
+                                            <div class="d-flex">
+                                                <field name="first_name" class="text-break me-2" placeholder="First Name"/>
+                                                <field name="last_name" class="text-break" placeholder="Last Name"/>
+                                            </div>
+                                        </h1>
+                                    </div>
+                                    <group>
+                                        <group>
+                                            <field name="gender"/>
+                                            <field name="email_address"/>
+                                            <field name="mobile_phone"/>
+                                        </group>
+                                        <group>
+                                            <field name="job_title_requiring_assessment"/>
+                                            <field name="position_level"/>
+                                            <field name="sequence"/>
+                                        </group>
+                                    </group>
+                                    <group string="Additional Information">
+                                        <field name="notes" placeholder="Additional notes about this participant..."/>
+                                    </group>
+                                </sheet>
+                            </form>
+                        </field>
+                    </page>
+                </xpath>
+            </field>
+        </record>
 
         <!-- Global action for all handover leads -->
         <record id="action_all_handover_leads" model="ir.actions.act_window">
@@ -172,8 +267,8 @@
                   action="action_all_handover_leads"
                   groups="peepl_crm.group_handover_user"
                   sequence="15"/>
-		
-		<!-- Handover Wizard View -->
+        
+        <!-- Handover Wizard View -->
         <record id="view_crm_handover_wizard_form" model="ir.ui.view">
             <field name="name">crm.handover.wizard.form</field>
             <field name="model">crm.handover.wizard</field>
@@ -213,6 +308,5 @@
             <field name="view_id" ref="view_crm_handover_wizard_form"/>
             <field name="target">new</field>
         </record>
-	</data>
+    </data>
 </odoo>
-

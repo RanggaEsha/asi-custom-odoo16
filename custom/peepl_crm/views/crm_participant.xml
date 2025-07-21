@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Participant Tree View -->
+        <record id="crm_participant_tree_view" model="ir.ui.view">
+            <field name="name">crm.participant.tree</field>
+            <field name="model">crm.participant</field>
+            <field name="arch" type="xml">
+                <tree string="Participants" editable="bottom" multi_edit="1">
+                    <field name="sequence" widget="handle"/>
+                    <field name="first_name" required="1"/>
+                    <field name="last_name" required="1"/>
+                    <field name="gender"/>
+                    <field name="email_address"/>
+                    <field name="mobile_phone"/>
+                    <field name="job_title_requiring_assessment"/>
+                    <field name="position_level"/>
+                    <field name="notes"/>
+                    <field name="active" optional="hide"/>
+                    <field name="lead_id" invisible="context.get('default_lead_id')"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Participant Form View -->
+        <record id="crm_participant_form_view" model="ir.ui.view">
+            <field name="name">crm.participant.form</field>
+            <field name="model">crm.participant</field>
+            <field name="arch" type="xml">
+                <form string="Participant">
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button name="toggle_active" type="object"
+                                    class="oe_stat_button" icon="fa-archive">
+                                <field name="active" widget="boolean_button"
+                                       options='{"terminology": "archive"}'/>
+                            </button>
+                        </div>
+                        <div class="oe_title">
+                            <h1>
+                                <div class="d-flex">
+                                    <field name="first_name" class="text-break me-2" placeholder="First Name"/>
+                                    <field name="last_name" class="text-break" placeholder="Last Name"/>
+                                </div>
+                            </h1>
+                        </div>
+                        <group>
+                            <group>
+                                <field name="gender"/>
+                                <field name="email_address"/>
+                                <field name="mobile_phone"/>
+                            </group>
+                            <group>
+                                <field name="job_title_requiring_assessment"/>
+                                <field name="position_level"/>
+                                <field name="sequence"/>
+                                <field name="lead_id" readonly="context.get('default_lead_id')"/>
+                            </group>
+                        </group>
+                        <group string="Additional Information">
+                            <field name="notes" placeholder="Additional notes about this participant..."/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Participant Search View -->
+        <record id="crm_participant_search_view" model="ir.ui.view">
+            <field name="name">crm.participant.search</field>
+            <field name="model">crm.participant</field>
+            <field name="arch" type="xml">
+                <search string="Search Participants">
+                    <field name="first_name"/>
+                    <field name="last_name"/>
+                    <field name="email_address"/>
+                    <field name="job_title_requiring_assessment"/>
+                    <field name="position_level"/>
+                    <field name="lead_id"/>
+                    <separator/>
+                    <filter string="Active" name="active" domain="[('active', '=', True)]"/>
+                    <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                    <separator/>
+                    <group expand="0" string="Group By">
+                        <filter string="Lead/Opportunity" name="lead" context="{'group_by': 'lead_id'}"/>
+                        <filter string="Gender" name="gender" context="{'group_by': 'gender'}"/>
+                        <filter string="Job Title" name="job_title" context="{'group_by': 'job_title_requiring_assessment'}"/>
+                        <filter string="Position Level" name="position_level" context="{'group_by': 'position_level'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
+        <!-- Participant Kanban View -->
+        <record id="crm_participant_kanban_view" model="ir.ui.view">
+            <field name="name">crm.participant.kanban</field>
+            <field name="model">crm.participant</field>
+            <field name="arch" type="xml">
+                <kanban class="o_kanban_mobile">
+                    <field name="first_name"/>
+                    <field name="last_name"/>
+                    <field name="email_address"/>
+                    <field name="job_title_requiring_assessment"/>
+                    <field name="position_level"/>
+                    <field name="lead_id"/>
+                    <templates>
+                        <t t-name="kanban-box">
+                            <div class="oe_kanban_card oe_kanban_global_click">
+                                <div class="row">
+                                    <div class="col-12">
+                                        <strong><t t-esc="record.first_name.value"/> <t t-esc="record.last_name.value"/></strong>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <span class="text-muted">Job Title: </span><field name="job_title_requiring_assessment"/>
+                                    </div>
+                                    <div class="col-6">
+                                        <span class="text-muted">Level: </span><field name="position_level"/>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-12">
+                                        <span class="text-muted">Email: </span><field name="email_address"/>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-12">
+                                        <span class="text-muted">Lead: </span><field name="lead_id"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </templates>
+                </kanban>
+            </field>
+        </record>
+
+        <!-- Participant Action -->
+        <record id="action_crm_participant" model="ir.actions.act_window">
+            <field name="name">Participants</field>
+            <field name="res_model">crm.participant</field>
+            <field name="view_mode">tree,kanban,form</field>
+            <field name="search_view_id" ref="crm_participant_search_view"/>
+            <field name="context">{'search_default_active': 1, 'group_by': 'lead_id'}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Create your first participant!
+                </p>
+                <p>
+                    Manage participant data for your leads and opportunities.
+                    You can import participants from Excel or CSV files.
+                </p>
+            </field>
+        </record>
+
+        <!-- Menu Item for Participants -->
+        <menuitem id="menu_crm_participant" 
+                  name="Participants" 
+                  parent="crm.crm_menu_sales" 
+                  action="action_crm_participant"
+                  sequence="20"/>
+
+    </data>
+</odoo>

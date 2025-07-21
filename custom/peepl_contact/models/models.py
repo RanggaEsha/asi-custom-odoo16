@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
 
-# from odoo import models, fields, api
+from odoo import models, fields, api
 
 
-# class peepl_contact(models.Model):
-#     _name = 'peepl_contact.peepl_contact'
-#     _description = 'peepl_contact.peepl_contact'
+class ResPartner(models.Model):
+    _inherit = 'res.partner'
 
-#     name = fields.Char()
-#     value = fields.Integer()
-#     value2 = fields.Float(compute="_value_pc", store=True)
-#     description = fields.Text()
-#
-#     @api.depends('value')
-#     def _value_pc(self):
-#         for record in self:
-#             record.value2 = float(record.value) / 100
+    # Documents section fields
+    sla = fields.Binary(string='SLA Document', help='Service Level Agreement document')
+    sla_filename = fields.Char(string='SLA Filename')
+    
+    ncif = fields.Binary(string='NCIF Document', help='NCIF document')
+    ncif_filename = fields.Char(string='NCIF Filename')
+    
+    kontrak_kerja = fields.Binary(string='Kontrak Kerja Document', help='Work Contract document')
+    kontrak_kerja_filename = fields.Char(string='Kontrak Kerja Filename')

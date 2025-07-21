@@ -31,6 +31,11 @@ class crm_lead(models.Model):
         for record in self:
             record.is_won_stage = record.stage_id.is_won if record.stage_id else False
 
+    def _compute_participant_count(self):
+        """Compute participant count"""
+        for record in self:
+            record.participant_count = self.env['crm.participant'].search_count([('lead_id', '=', record.id)])
+
     task_number = fields.Integer(compute='task_count', string='Tasks')
     
     # Handover fields
@@ -43,6 +48,32 @@ class crm_lead(models.Model):
                                   help='Date when this lead was handed over or created from handover')
     is_won_stage = fields.Boolean(string='Is Won Stage', compute='_compute_is_won_stage',
                                 help='True if current stage is marked as won')
+    
+    # Participant data fields
+    has_participant_data = fields.Boolean(string='Has Participant Data', default=False,
+                                        help='Enable to manage participant data for this lead/opportunity')
+    participant_ids = fields.One2many('crm.participant', 'lead_id', string='Participants')
+    participant_count = fields.Integer(string='Participant Count', compute='_compute_participant_count')
+    
+    # Assessment fields (visible when has_participant_data is True)
+    purpose = fields.Text(string='Purpose', help='Purpose of the assessment')
+    test_start_date = fields.Date(string='Test Start Date')
+    test_finish_date = fields.Date(string='Test Finish Date')
+    type_of_assessment = fields.Selection([
+        ('written', 'Written'),
+        ('practical', 'Practical'),
+        ('oral', 'Oral'),
+        ('mixed', 'Mixed'),
+        ('online', 'Online')
+    ], string='Type of Assessment')
+    assessment_language = fields.Selection([
+        ('english', 'English'),
+        ('indonesian', 'Indonesian'),
+        ('mandarin', 'Mandarin'),
+        ('japanese', 'Japanese'),
+        ('korean', 'Korean'),
+        ('other', 'Other')
+    ], string='Assessment Language')
     
     def action_handover_to_solution_delivery(self):
         """Open handover wizard for team selection"""
@@ -65,6 +96,21 @@ class crm_lead(models.Model):
                 'default_source_lead_id': self.id,
                 'active_id': self.id,
             }
+        }
+
+    def action_view_participants(self):
+        """Action to view participants in a dedicated window"""
+        return {
+            'name': _('Participants'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'crm.participant',
+            'view_mode': 'tree,form',
+            'domain': [('lead_id', '=', self.id)],
+            'context': {
+                'default_lead_id': self.id,
+                'search_default_lead_id': self.id,
+            },
+            'target': 'current',
         }
     
 class crm_task_wizard(models.TransientModel):
@@ -253,4 +299,3 @@ class crm_handover_wizard(models.TransientModel):
             'target': 'current',
         }
         
-# vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:
