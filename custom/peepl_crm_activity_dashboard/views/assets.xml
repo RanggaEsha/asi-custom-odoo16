@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Enhanced Assets for CRM Activity Dashboard -->
+    <!-- Enhanced Assets for CRM Activity Dashboard with Calendar Support -->
     <template id="crm_activity_dashboard_assets" inherit_id="web.assets_backend">
         <xpath expr="." position="inside">
             <!-- Enhanced JavaScript Files -->
             <script type="text/javascript" src="/peepl_crm_activity_dashboard/static/src/js/activity_done_success.js"/>
-            <script type="text/javascript" src="/peepl_crm_activity_dashboard/static/src/js/crm_activity_dashboard_enhanced.js"/>
+            <script type="text/javascript" src="/peepl_crm_activity_dashboard/static/src/js/crm_activity_dashboard.js"/>
             
             <!-- Enhanced CSS Styles -->
             <style type="text/css">
@@ -92,6 +92,183 @@
                     0% { box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3); }
                     50% { box-shadow: 0 2px 8px rgba(255, 152, 0, 0.6); }
                     100% { box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3); }
+                }
+                
+                /* Calendar View Enhancements */
+                
+                /* Calendar event styling based on activity state */
+                .o_calendar_event {
+                    border-radius: 6px;
+                    padding: 4px 6px;
+                    margin: 1px;
+                    font-size: 11px;
+                    line-height: 1.2;
+                    overflow: hidden;
+                    position: relative;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                    transition: all 0.2s ease;
+                }
+                
+                .o_calendar_event:hover {
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                    z-index: 10;
+                    cursor: pointer;
+                }
+                
+                /* Calendar event content styling */
+                .o_calendar_event_icon {
+                    float: left;
+                    margin-right: 4px;
+                    line-height: 1;
+                }
+                
+                .o_calendar_event_title {
+                    font-weight: 600;
+                    margin-bottom: 2px;
+                    word-wrap: break-word;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                
+                .o_calendar_event_subtitle {
+                    font-size: 10px;
+                    opacity: 0.8;
+                    margin-bottom: 1px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                
+                .o_calendar_event_customer,
+                .o_calendar_event_type,
+                .o_calendar_event_revenue {
+                    font-size: 9px;
+                    opacity: 0.7;
+                    margin-bottom: 1px;
+                }
+                
+                .o_calendar_event_completion {
+                    font-size: 9px;
+                    margin-top: 2px;
+                    padding-top: 2px;
+                    border-top: 1px solid rgba(0,0,0,0.1);
+                }
+                
+                .o_calendar_event_priority {
+                    position: absolute;
+                    top: 2px;
+                    right: 2px;
+                    font-size: 8px;
+                }
+                
+                /* Calendar view enhancements */
+                .o_calendar_view .fc-day-grid-event {
+                    border-radius: 4px;
+                    margin: 1px 0;
+                }
+                
+                .o_calendar_view .fc-time-grid-event {
+                    border-radius: 4px;
+                    border: none;
+                }
+                
+                /* Calendar header styling */
+                .o_calendar_view .fc-toolbar {
+                    background: #f8f9fa;
+                    border-radius: 8px;
+                    padding: 10px;
+                    margin-bottom: 15px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+                
+                .o_calendar_view .fc-toolbar .fc-button-group .fc-button {
+                    background: white;
+                    border: 1px solid #dee2e6;
+                    color: #495057;
+                    border-radius: 4px;
+                    margin: 0 2px;
+                    transition: all 0.2s ease;
+                }
+                
+                .o_calendar_view .fc-toolbar .fc-button-group .fc-button:hover {
+                    background: #007bff;
+                    color: white;
+                    transform: translateY(-1px);
+                }
+                
+                .o_calendar_view .fc-toolbar .fc-button-group .fc-button.fc-state-active {
+                    background: #007bff;
+                    color: white;
+                    box-shadow: 0 2px 4px rgba(0,123,255,0.3);
+                }
+                
+                /* Calendar day headers */
+                .o_calendar_view .fc-day-header {
+                    background: #f8f9fa;
+                    color: #495057;
+                    font-weight: 600;
+                    padding: 8px;
+                    border-bottom: 2px solid #dee2e6;
+                }
+                
+                /* Today highlighting */
+                .o_calendar_view .fc-today {
+                    background: #fff9e6 !important;
+                    border: 1px solid #ffc107;
+                }
+                
+                .o_calendar_view .fc-today .fc-day-number {
+                    background: #ffc107;
+                    color: white;
+                    border-radius: 50%;
+                    width: 24px;
+                    height: 24px;
+                    line-height: 24px;
+                    text-align: center;
+                    font-weight: bold;
+                }
+                
+                /* Calendar event icons */
+                .o_calendar_event .fa {
+                    font-size: 10px;
+                    margin-right: 2px;
+                }
+                
+                .o_calendar_event .fa-check-circle {
+                    color: #4caf50;
+                }
+                
+                .o_calendar_event .fa-exclamation-triangle {
+                    color: #f44336;
+                    animation: pulse-danger 2s infinite;
+                }
+                
+                .o_calendar_event .fa-clock-o {
+                    color: #ff9800;
+                    animation: pulse-warning 2s infinite;
+                }
+                
+                .o_calendar_event .fa-calendar {
+                    color: #2196f3;
+                }
+                
+                .o_calendar_event .fa-calendar-o {
+                    color: #9e9e9e;
+                }
+                
+                /* Pulse animations for calendar icons */
+                @keyframes pulse-danger {
+                    0% { transform: scale(1); opacity: 1; }
+                    50% { transform: scale(1.1); opacity: 0.8; }
+                    100% { transform: scale(1); opacity: 1; }
+                }
+                
+                @keyframes pulse-warning {
+                    0% { transform: scale(1); opacity: 1; }
+                    50% { transform: scale(1.05); opacity: 0.9; }
+                    100% { transform: scale(1); opacity: 1; }
                 }
                 
                 /* Form view enhancements */
@@ -185,21 +362,6 @@
                     to { transform: rotate(360deg); }
                 }
                 
-                /* Success indicator for refresh */
-                .refresh-indicator {
-                    position: fixed;
-                    top: 20px;
-                    right: 20px;
-                    background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
-                    color: white;
-                    padding: 8px 16px;
-                    border-radius: 20px;
-                    font-size: 12px;
-                    font-weight: 500;
-                    z-index: 1000;
-                    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
-                }
-                
                 /* Enhanced button styling */
                 .btn-primary {
                     background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
@@ -248,6 +410,25 @@
                     .badge-success {
                         font-size: 10px;
                         padding: 3px 8px;
+                    }
+                    
+                    .o_calendar_event {
+                        font-size: 10px;
+                        padding: 2px 4px;
+                    }
+                    
+                    .o_calendar_event_title {
+                        font-size: 10px;
+                    }
+                    
+                    .o_calendar_event_subtitle,
+                    .o_calendar_event_customer,
+                    .o_calendar_event_type {
+                        font-size: 8px;
+                    }
+                    
+                    .o_calendar_event_priority {
+                        display: none;
                     }
                 }
             </style>

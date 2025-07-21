@@ -1,11 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Action for CRM Activity Dashboard -->
+    <!-- Updated Action for CRM Activity Dashboard with Calendar -->
     <record id="action_crm_activity_dashboard" model="ir.actions.act_window">
         <field name="name">Activity Dashboard</field>
         <field name="res_model">crm.activity.dashboard</field>
-        <field name="view_mode">tree,kanban,form,pivot,graph</field>
+        <field name="view_mode">tree,kanban,calendar,form,pivot,graph</field>
         <field name="view_id" ref="view_crm_activity_dashboard_tree"/>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'tree', 'view_id': ref('view_crm_activity_dashboard_tree')}),
+            (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_crm_activity_dashboard_kanban')}),
+            (0, 0, {'view_mode': 'calendar', 'view_id': ref('view_crm_activity_dashboard_calendar')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_crm_activity_dashboard_form')}),
+            (0, 0, {'view_mode': 'pivot', 'view_id': ref('view_crm_activity_dashboard_pivot')}),
+            (0, 0, {'view_mode': 'graph', 'view_id': ref('view_crm_activity_dashboard_graph')}),
+        ]"/>
         <field name="search_view_id" ref="view_crm_activity_dashboard_search"/>
         <field name="domain">[]</field>
         <field name="context">{
@@ -29,6 +38,7 @@
             </ul>
             <p>
                 Use the filters above to navigate through activities by date, status, team, or user.
+                Switch between List, Kanban, Calendar, and Graph views using the view selector.
             </p>
         </field>
     </record>
@@ -49,11 +59,24 @@
               sequence="20"
               groups="peepl_crm_activity_dashboard.group_crm_activity_dashboard_manager"/>
 
+    <!-- Additional action for calendar-only view -->
+    <record id="action_crm_activity_dashboard_calendar_only" model="ir.actions.act_window">
+        <field name="name">Activities Calendar</field>
+        <field name="res_model">crm.activity.dashboard</field>
+        <field name="view_mode">calendar,tree,form</field>
+        <field name="view_id" ref="view_crm_activity_dashboard_calendar"/>
+        <field name="search_view_id" ref="view_crm_activity_dashboard_search"/>
+        <field name="domain">[]</field>
+        <field name="context">{
+            'search_default_my_activities': 1,
+        }</field>
+    </record>
+
     <!-- Additional action for overdue activities -->
     <record id="action_crm_activity_dashboard_overdue" model="ir.actions.act_window">
         <field name="name">Overdue Activities</field>
         <field name="res_model">crm.activity.dashboard</field>
-        <field name="view_mode">tree,kanban,form</field>
+        <field name="view_mode">tree,kanban,calendar,form</field>
         <field name="view_id" ref="view_crm_activity_dashboard_tree"/>
         <field name="search_view_id" ref="view_crm_activity_dashboard_search"/>
         <field name="domain">[('state', '=', 'overdue')]</field>
@@ -66,7 +89,7 @@
     <record id="action_crm_activity_dashboard_today" model="ir.actions.act_window">
         <field name="name">Today's Activities</field>
         <field name="res_model">crm.activity.dashboard</field>
-        <field name="view_mode">tree,kanban,form</field>
+        <field name="view_mode">tree,kanban,calendar,form</field>
         <field name="view_id" ref="view_crm_activity_dashboard_tree"/>
         <field name="search_view_id" ref="view_crm_activity_dashboard_search"/>
         <field name="domain">[('state', '=', 'today')]</field>
@@ -79,7 +102,7 @@
     <record id="action_crm_activity_dashboard_my" model="ir.actions.act_window">
         <field name="name">My Activities</field>
         <field name="res_model">crm.activity.dashboard</field>
-        <field name="view_mode">tree,kanban,form</field>
+        <field name="view_mode">tree,kanban,calendar,form</field>
         <field name="view_id" ref="view_crm_activity_dashboard_tree"/>
         <field name="search_view_id" ref="view_crm_activity_dashboard_search"/>
         <field name="domain">[('user_id', '=', uid)]</field>
@@ -88,6 +111,14 @@
             'search_default_active_activities': 1,
         }</field>
     </record>
+
+    <!-- Additional menu item for calendar-only view -->
+    <menuitem id="menu_crm_activity_calendar"
+              name="Activities Calendar"
+              parent="crm.crm_menu_root"
+              action="action_crm_activity_dashboard_calendar_only"
+              sequence="16"
+              groups="peepl_crm_activity_dashboard.group_crm_activity_dashboard_user"/>
 
     <!-- Server actions for quick access -->
     <record id="action_server_mark_done_selected" model="ir.actions.server">
@@ -99,7 +130,9 @@
         <field name="code">
 for record in records:
     if record.activity_id and record.is_active:
-        record.activity_id.action_done()
+        activity = env['mail.activity'].browse(record.activity_id)
+        if activity.exists():
+            activity.action_done()
         </field>
         <field name="groups_id" eval="[(4, ref('group_crm_activity_dashboard_manager'))]"/>
     </record>
