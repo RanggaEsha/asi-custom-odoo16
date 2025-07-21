@@ -9,7 +9,7 @@ _logger = logging.getLogger(__name__)
 class CrmActivityDashboard(models.Model):
     _name = 'crm.activity.dashboard'
     _description = 'CRM Activity Dashboard'
-    _rec_name = 'user_id'
+    _rec_name = 'calendar_title'  # This makes calendar_title the default display name
     _auto = False
     _order = 'date_deadline asc, priority desc, id desc'
 
@@ -68,6 +68,31 @@ class CrmActivityDashboard(models.Model):
     completed_by_user_id = fields.Many2one('res.users', string='Completed By', readonly=True)
     feedback = fields.Html('Feedback', readonly=True)
     # attachment_ids = fields.Many2many('ir.attachment', string='Attachments', readonly=True)
+
+    calendar_title = fields.Char('Calendar Title', compute='_compute_calendar_title', readonly=True)
+    state_color_code = fields.Integer('State Color Code', compute='_compute_state_color_code', readonly=True)
+
+    # ADD THESE NEW COMPUTED METHODS:
+    @api.depends('summary', 'user_id')
+    def _compute_calendar_title(self):
+        """Compute title for calendar display: Summary + User Name"""
+        for record in self:
+            summary = record.summary or 'Activity'
+            user_name = record.user_id.name if record.user_id else 'Unassigned'
+            record.calendar_title = f"{summary} - {user_name}"
+
+    @api.depends('state')
+    def _compute_state_color_code(self):
+        """Compute numeric color code based on state for calendar coloring"""
+        color_map = {
+            'overdue': 1,   # Red
+            'today': 2,     # Yellow  
+            'tomorrow': 3,  # Blue
+            'planned': 4,   # Gray
+            'done': 5,      # Green
+        }
+        for record in self:
+            record.state_color_code = color_map.get(record.state, 0)
 
     def init(self):
         """Create the SQL view for the dashboard"""
@@ -137,10 +162,21 @@ class CrmActivityDashboard(models.Model):
                             WHEN ma.date_deadline = CURRENT_DATE THEN '#ff9800'
                             WHEN ma.date_deadline = CURRENT_DATE + INTERVAL '1 day' THEN '#ffeb3b'
                             ELSE '#9e9e9e'
-                        END as activity_color
+                        END as activity_color,
+                        -- Calendar title (Summary + User)
+                        COALESCE(ma.summary, 'Activity') || ' - ' || COALESCE(up.name, 'Unassigned') as calendar_title,
+                        -- State color code for calendar
+                        CASE 
+                            WHEN ma.date_deadline < CURRENT_DATE THEN 1  -- Red (overdue)
+                            WHEN ma.date_deadline = CURRENT_DATE THEN 2  -- Yellow (today)
+                            WHEN ma.date_deadline = CURRENT_DATE + INTERVAL '1 day' THEN 3  -- Blue (tomorrow)
+                            ELSE 4  -- Gray (planned)
+                        END as state_color_code
                     FROM mail_activity ma
                     INNER JOIN crm_lead cl ON ma.res_id = cl.id AND ma.res_model = 'crm.lead'
                     LEFT JOIN res_company comp ON comp.id = COALESCE(cl.company_id, 1)
+                    LEFT JOIN res_users u ON u.id = ma.user_id
+                    LEFT JOIN res_partner up ON up.id = u.partner_id
                     WHERE ma.res_model = 'crm.lead'
                     
                     UNION ALL
@@ -174,8 +210,13 @@ class CrmActivityDashboard(models.Model):
                         mad.feedback,
                         'done'::varchar as state,
                         mad.days_overdue,
-                        '#4caf50'::varchar as activity_color  -- Green for done
+                        '#4caf50'::varchar as activity_color,  -- Green for done
+                        -- Calendar title for done activities
+                        mad.summary || ' - ' || COALESCE(up2.name, 'Unassigned') as calendar_title,
+                        5 as state_color_code  -- Green (done)
                     FROM mail_activity_done mad
+                    LEFT JOIN res_users u2 ON u2.id = mad.user_id
+                    LEFT JOIN res_partner up2 ON up2.id = u2.partner_id
                     WHERE mad.lead_id IS NOT NULL
                 )
             ''' % self._table
@@ -233,10 +274,21 @@ class CrmActivityDashboard(models.Model):
                             WHEN ma.date_deadline = CURRENT_DATE THEN '#ff9800'
                             WHEN ma.date_deadline = CURRENT_DATE + INTERVAL '1 day' THEN '#ffeb3b'
                             ELSE '#9e9e9e'
-                        END as activity_color
+                        END as activity_color,
+                        -- Calendar title (Summary + User)
+                        COALESCE(ma.summary, 'Activity') || ' - ' || COALESCE(up.name, 'Unassigned') as calendar_title,
+                        -- State color code for calendar
+                        CASE 
+                            WHEN ma.date_deadline < CURRENT_DATE THEN 1  -- Red (overdue)
+                            WHEN ma.date_deadline = CURRENT_DATE THEN 2  -- Yellow (today)
+                            WHEN ma.date_deadline = CURRENT_DATE + INTERVAL '1 day' THEN 3  -- Blue (tomorrow)
+                            ELSE 4  -- Gray (planned)
+                        END as state_color_code
                     FROM mail_activity ma
                     INNER JOIN crm_lead cl ON ma.res_id = cl.id AND ma.res_model = 'crm.lead'
                     LEFT JOIN res_company comp ON comp.id = COALESCE(cl.company_id, 1)
+                    LEFT JOIN res_users u ON u.id = ma.user_id
+                    LEFT JOIN res_partner up ON up.id = u.partner_id
                     WHERE ma.res_model = 'crm.lead'
                 )
             ''' % self._table

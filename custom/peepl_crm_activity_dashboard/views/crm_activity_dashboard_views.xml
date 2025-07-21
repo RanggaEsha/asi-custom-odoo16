@@ -58,8 +58,9 @@
                 <field name="arch" type="xml">
                         <calendar string="CRM Activities Calendar"
                                 date_start="date_deadline"
-                                color="state"
-                                event_open_popup="true">
+                                color="state_color_code"
+                                event_open_popup="true"
+                                mode="month">
                                 <field name="summary"/>
                                 <field name="user_id"/>
                                 <field name="date_deadline"/>
