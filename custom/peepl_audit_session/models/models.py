@@ -240,7 +240,7 @@ class AuditSession(models.Model):
 
     @api.model
     def create_session(self, user_id, session_id, request_obj=None):
-        """FIXED: Create a new audit session with better error handling"""
+        """FIXED: Create a new audit session with better consistency and debugging"""
         try:
             # Skip during module installation
             if self.env.context.get('module') or self.env.context.get('install_mode'):
@@ -251,6 +251,26 @@ class AuditSession(models.Model):
             if not self.env.cr.fetchone():
                 return None
         
+            # Debug logging
+            _logger.info(f"CREATE_SESSION DEBUG - Creating session for user {user_id} with session_id {session_id}")
+            
+            # CRITICAL: Check if session already exists BEFORE creating
+            existing_session = self.sudo().search([
+                ('session_id', '=', session_id),
+                ('user_id', '=', user_id)
+            ], limit=1)
+            
+            if existing_session:
+                _logger.info(f"CREATE_SESSION DEBUG - Session already exists {existing_session.id}, "
+                           f"updating instead of creating new one")
+                # Update existing session instead of creating new one
+                existing_session.sudo().write({
+                    'login_time': fields.Datetime.now(),
+                    'status': 'active',
+                    'error_message': False,
+                })
+                return existing_session
+            
             values = {
                 'user_id': user_id,
                 'session_id': session_id,
@@ -274,13 +294,20 @@ class AuditSession(models.Model):
                     location_info = self.get_location_from_ip(values['ip_address'])
                     values.update(location_info)
             
-            # FIXED: Use create instead of self.create for better reliability
+            # Create the session
             session = self.sudo().create(values)
-            _logger.info(f"Created audit session {session.id} for user {user_id} with session_id {session_id}")
+            _logger.info(f"CREATE_SESSION DEBUG - Successfully created session {session.id} "
+                        f"for user {user_id} with session_id {session_id}")
+            
+            # Immediate commit to ensure the session is available for subsequent operations
+            self.env.cr.commit()
+            
             return session
             
         except Exception as e:
-            _logger.warning(f"Failed to create audit session: {e}")
+            _logger.error(f"Failed to create audit session: {e}")
+            # Rollback to prevent database corruption
+            self.env.cr.rollback()
             return None
 
     def close_session(self):

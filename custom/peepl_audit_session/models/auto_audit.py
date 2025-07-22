@@ -82,7 +82,7 @@ class BaseModelOptimized(models.AbstractModel):
             if self.env.user.id not in audit_users:
                 return False
                 
-        # Quick model check - FIXED: Remove hardcoded model restriction
+        # Quick model check
         if not config.all_objects:
             model_cache_key = f'_audit_models_cache_{config.id}'
             if not hasattr(self.env, model_cache_key):
@@ -102,7 +102,6 @@ class BaseModelOptimized(models.AbstractModel):
         """Override create with performance optimization"""
         records = super().create(vals_list)
         
-        # FIXED: Remove hardcoded model restriction, rely on configuration only
         if self._should_audit_operation('create'):
             try:
                 session_id = self._get_current_session_id()
@@ -118,7 +117,6 @@ class BaseModelOptimized(models.AbstractModel):
         if not vals:
             return super().write(vals)
             
-        # FIXED: Remove hardcoded model restriction, rely on configuration only
         old_values_by_record = {}
         if self._should_audit_operation('write'):
             try:
@@ -153,7 +151,6 @@ class BaseModelOptimized(models.AbstractModel):
 
     def unlink(self):
         """Override unlink with performance optimization"""
-        # FIXED: Remove hardcoded model restriction, rely on configuration only
         records_info = []
         if self._should_audit_operation('unlink'):
             try:
@@ -181,18 +178,23 @@ class BaseModelOptimized(models.AbstractModel):
         return result
 
     def _get_current_session_id(self):
-        """FIXED: Get current session ID with improved logic"""
+        """ROBUST: Get current session ID with fallback session creation"""
         try:
             if not request or not hasattr(request, 'session'):
+                _logger.debug("No request or session context available")
                 return None
                 
             session_sid = getattr(request.session, 'sid', None)
             user_id = self.env.user.id
             
+            # Debug logging
+            _logger.info(f"SESSION LOOKUP - SID: {session_sid}, User ID: {user_id}")
+            
             if not session_sid or not user_id:
+                _logger.warning(f"Missing session_sid ({session_sid}) or user_id ({user_id})")
                 return None
             
-            # Look for existing session
+            # STEP 1: Look for exact match (preferred)
             session = self.env['audit.session'].sudo().search([
                 ('session_id', '=', session_sid),
                 ('user_id', '=', user_id),
@@ -200,42 +202,58 @@ class BaseModelOptimized(models.AbstractModel):
             ], limit=1)
             
             if session:
+                _logger.info(f"SESSION FOUND - Exact match: {session.id}")
                 return session.id
             
-            # If no session found, create one
-            _logger.info(f"Creating missing audit session for user {user_id}")
-            new_session = self.env['audit.session'].sudo().create({
+            # STEP 2: Look for any active session for this user (session ID might have changed)
+            user_sessions = self.env['audit.session'].sudo().search([
+                ('user_id', '=', user_id),
+                ('status', '=', 'active')
+            ])
+            
+            _logger.warning(f"NO EXACT MATCH - Found {len(user_sessions)} active sessions for user {user_id}")
+            
+            if user_sessions:
+                # Use the most recent active session
+                latest_session = user_sessions.sorted('login_time', reverse=True)[0]
+                _logger.warning(f"USING LATEST SESSION - {latest_session.id} (SID: {latest_session.session_id})")
+                
+                # Update the session SID to current one (session might have been regenerated)
+                latest_session.sudo().write({'session_id': session_sid})
+                return latest_session.id
+            
+            # STEP 3: FALLBACK - Create emergency session (login hook might have failed)
+            _logger.error(f"EMERGENCY SESSION CREATION - No active session found for user {user_id}")
+            
+            emergency_session = self.env['audit.session'].sudo().create({
                 'user_id': user_id,
                 'session_id': session_sid,
                 'login_time': fields.Datetime.now(),
                 'status': 'active',
                 'ip_address': getattr(request.httprequest, 'remote_addr', 'unknown') if hasattr(request, 'httprequest') else 'unknown',
-                'device_type': 'desktop'
+                'device_type': 'unknown',
+                'error_message': 'Emergency session created during action (login hook may have failed)'
             })
             
-            if new_session:
-                # Commit to make session available immediately
-                self.env.cr.commit()
-                return new_session.id
+            # Commit immediately to ensure availability
+            self.env.cr.commit()
+            _logger.error(f"EMERGENCY SESSION CREATED - {emergency_session.id}")
+            return emergency_session.id
                 
-            return None
-            
         except Exception as e:
-            _logger.warning(f"Failed to get current session: {e}")
+            _logger.error(f"CRITICAL: Failed to get/create session: {e}")
             return None
 
     def _create_audit_log(self, action_type, res_id, old_values=None, new_values=None, session_id=None):
-        """Optimized audit log creation"""
+        """ROBUST: Create audit log with enhanced error handling"""
         try:
-            # Prepare minimal values
-            audit_vals = {
-                'user_id': self.env.user.id,
-                'session_id': session_id,
-                'res_id': res_id,
-                'action_type': action_type,
-                'action_date': fields.Datetime.now(),
-                'method': action_type,
-            }
+            user_id = self.env.user.id
+            _logger.info(f"AUDIT LOG ATTEMPT - {action_type} on {self._name}({res_id}) by user {user_id}")
+            
+            # If no session_id, try to get one
+            if not session_id:
+                session_id = self._get_current_session_id()
+                _logger.info(f"AUDIT LOG - Retrieved session_id: {session_id}")
             
             # Get model ID (cached per model)
             model_cache_key = f'_model_id_cache_{self._name}'
@@ -244,26 +262,59 @@ class BaseModelOptimized(models.AbstractModel):
                 setattr(self.env, model_cache_key, model.id if model else None)
             
             model_id = getattr(self.env, model_cache_key)
-            if model_id:
-                audit_vals['model_id'] = model_id
-                
-                # Get record name for better identification
+            if not model_id:
+                _logger.error(f"AUDIT LOG FAILED - No model found for {self._name}")
+                return
+            
+            # Prepare audit values
+            audit_vals = {
+                'user_id': user_id,
+                'model_id': model_id,
+                'res_id': res_id,
+                'action_type': action_type,
+                'action_date': fields.Datetime.now(),
+                'method': action_type,
+            }
+            
+            # Add session if available (but don't fail if missing)
+            if session_id:
+                audit_vals['session_id'] = session_id
+            else:
+                _logger.warning(f"AUDIT LOG - No session available for {action_type} on {self._name}({res_id})")
+                # Continue without session - better to have partial log than no log
+            
+            # Get record name for better identification
+            try:
+                if action_type != 'unlink':
+                    record = self.browse(res_id)
+                    if record.exists():
+                        audit_vals['res_name'] = record.display_name
+                    else:
+                        audit_vals['res_name'] = f"ID: {res_id} (deleted)"
+                else:
+                    audit_vals['res_name'] = f"ID: {res_id} (deleted)"
+            except Exception as e:
+                audit_vals['res_name'] = f"ID: {res_id} (error: {str(e)[:50]})"
+            
+            # Add values if provided
+            if old_values:
                 try:
-                    if action_type != 'unlink':
-                        record = self.browse(res_id)
-                        if record.exists():
-                            audit_vals['res_name'] = record.display_name
-                except Exception:
-                    audit_vals['res_name'] = f"ID: {res_id}"
-                
-                # Add values if provided
-                if old_values:
                     audit_vals['old_values'] = json.dumps(old_values, default=str)
-                if new_values:
-                    audit_vals['new_values'] = json.dumps(new_values, default=str)
+                except Exception as e:
+                    audit_vals['old_values'] = f"Error serializing: {str(e)}"
                     
-                # Create log entry
-                self.env['audit.log.entry'].sudo().create(audit_vals)
+            if new_values:
+                try:
+                    audit_vals['new_values'] = json.dumps(new_values, default=str)
+                except Exception as e:
+                    audit_vals['new_values'] = f"Error serializing: {str(e)}"
+                    
+            # Create log entry
+            log_entry = self.env['audit.log.entry'].sudo().create(audit_vals)
+            _logger.info(f"AUDIT LOG SUCCESS - Created log {log_entry.id} for {action_type} on {self._name}({res_id})")
+            
+            return log_entry
                 
         except Exception as e:
-            _logger.debug(f"Failed to create audit log: {e}")
+            _logger.error(f"AUDIT LOG CRITICAL FAILURE - {action_type} on {self._name}({res_id}): {e}")
+            # Don't re-raise - audit failures shouldn't break business operations
