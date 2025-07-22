@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Audit Clear Wizard Form View -->
+        <record id="audit_clear_wizard_form" model="ir.ui.view">
+            <field name="name">audit.clear.wizard.form</field>
+            <field name="model">audit.clear.wizard</field>
+            <field name="arch" type="xml">
+                <form string="Clear Audit Logs">
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>Clear Audit Logs</h1>
+                            <p>Use this wizard to selectively clear audit log entries. Be careful as this action cannot be undone.</p>
+                        </div>
+                        
+                        <group>
+                            <group string="Clear Options">
+                                <field name="clear_all"/>
+                                <field name="to_date" attrs="{'invisible': [('clear_all', '=', True)], 'required': [('clear_all', '=', False)]}"/>
+                            </group>
+                            <group string="Preview">
+                                <field name="preview_count" readonly="1"/>
+                                <field name="is_preview" invisible="1"/>
+                            </group>
+                        </group>
+                        
+                        <group string="Action Types to Clear" attrs="{'invisible': [('clear_all', '=', True)]}">
+                            <group>
+                                <field name="clear_read"/>
+                                <field name="clear_write"/>
+                            </group>
+                            <group>
+                                <field name="clear_create"/>
+                                <field name="clear_unlink"/>
+                            </group>
+                        </group>
+                        
+                        <group string="Additional Filters" attrs="{'invisible': [('clear_all', '=', True)]}">
+                            <group>
+                                <field name="model_id" domain="[('model', 'in', ['res.users', 'res.partner', 'sale.order', 'purchase.order', 'account.move', 'stock.picking', 'project.project', 'hr.employee'])]"/>
+                                <field name="user_id"/>
+                            </group>
+                            <group>
+                                <field name="session_id"/>
+                            </group>
+                        </group>
+                        
+                        <div class="alert alert-warning" role="alert" attrs="{'invisible': [('preview_count', '=', 0)]}">
+                            <strong>Warning!</strong> This will permanently delete <field name="preview_count" readonly="1"/> audit log entries.
+                            This action cannot be undone.
+                        </div>
+                        
+                        <div class="alert alert-info" role="alert" attrs="{'invisible': [('preview_count', '!=', 0)]}">
+                            No logs match the current filter criteria.
+                        </div>
+                    </sheet>
+                    
+                    <footer>
+                        <button string="Preview" name="action_preview" type="object" class="btn-secondary"/>
+                        <button string="View Matching Logs" name="action_view_logs" type="object" class="btn-secondary" 
+                                attrs="{'invisible': [('preview_count', '=', 0)]}"/>
+                        <button string="Clear Logs" name="action_confirm_clear" type="object" class="btn-primary" 
+                                attrs="{'invisible': [('preview_count', '=', 0)]}"
+                                confirm="Are you sure you want to permanently delete these audit logs? This action cannot be undone."/>
+                        <button string="Cancel" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <!-- Audit Clear Wizard Action -->
+        <record id="action_audit_clear_wizard" model="ir.actions.act_window">
+            <field name="name">Clear Audit Logs</field>
+            <field name="res_model">audit.clear.wizard</field>
+            <field name="view_mode">form</field>
+            <field name="target">new</field>
+            <field name="context">{}</field>
+        </record>
+
+    </data>
+</odoo>

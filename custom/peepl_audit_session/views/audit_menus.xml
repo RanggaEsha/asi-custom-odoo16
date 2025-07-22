@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Main Audit Menu -->
+        <menuitem id="menu_audit_root" 
+                  name="User Audit" 
+                  web_icon="peepl_audit_session,static/description/icon.png"
+                  sequence="90"/>
+
+        <!-- Configuration Menu -->
+        <menuitem id="menu_audit_configuration" 
+                  name="Configuration" 
+                  parent="menu_audit_root"
+                  groups="peepl_audit_session.group_audit_manager"
+                  sequence="10"/>
+
+        <menuitem id="menu_audit_config" 
+                  name="Audit Settings" 
+                  parent="menu_audit_configuration"
+                  action="action_audit_config"
+                  groups="peepl_audit_session.group_audit_manager"
+                  sequence="10"/>
+
+        <!-- Logs Menu -->
+        <menuitem id="menu_audit_logs" 
+                  name="Audit Logs" 
+                  parent="menu_audit_root"
+                  sequence="20"/>
+
+        <menuitem id="menu_audit_log_entry" 
+                  name="All Activity Logs" 
+                  parent="menu_audit_logs"
+                  action="action_audit_log_entry"
+                  groups="peepl_audit_session.group_audit_manager"
+                  sequence="10"/>
+
+        <menuitem id="menu_my_audit_logs" 
+                  name="My Activity Logs" 
+                  parent="menu_audit_logs"
+                  action="action_my_audit_logs"
+                  groups="peepl_audit_session.group_audit_user"
+                  sequence="20"/>
+
+        <!-- Sessions Menu -->
+        <menuitem id="menu_audit_sessions" 
+                  name="User Sessions" 
+                  parent="menu_audit_root"
+                  sequence="30"/>
+
+        <menuitem id="menu_audit_session" 
+                  name="All Sessions" 
+                  parent="menu_audit_sessions"
+                  action="action_audit_session"
+                  groups="peepl_audit_session.group_audit_manager"
+                  sequence="10"/>
+
+        <menuitem id="menu_my_sessions" 
+                  name="My Sessions" 
+                  parent="menu_audit_sessions"
+                  action="action_my_sessions"
+                  groups="peepl_audit_session.group_audit_user"
+                  sequence="20"/>
+
+        <!-- Tools Menu -->
+        <menuitem id="menu_audit_tools" 
+                  name="Tools" 
+                  parent="menu_audit_root"
+                  groups="peepl_audit_session.group_audit_manager"
+                  sequence="40"/>
+
+        <menuitem id="menu_audit_clear_wizard" 
+                  name="Clear Audit Logs" 
+                  parent="menu_audit_tools"
+                  action="action_audit_clear_wizard"
+                  groups="peepl_audit_session.group_audit_manager"
+                  sequence="10"/>
+
+    </data>
+</odoo>

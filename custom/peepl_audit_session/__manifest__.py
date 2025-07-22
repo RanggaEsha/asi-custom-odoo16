@@ -1,35 +1,57 @@
 # -*- coding: utf-8 -*-
 {
-    'name': "peepl_audit_session",
+    'name': "Advanced User Audit Log Tracking",
 
     'summary': """
-        Short (1 phrase/line) summary of the module's purpose, used as
-        subtitle on modules listing or apps.openerp.com""",
-
-    'description': """
-        Long description of module's purpose
+        Comprehensive User Activity and Session Audit Tracking for Odoo 16 Enterprise
     """,
 
-    'author': "My Company",
-    'website': "https://www.yourcompany.com",
+    'description': """
+        Advanced User Audit Log Tracking for Odoo provides comprehensive tracking of user activities, 
+        offering insights into behavior, access patterns, and actions like read, write, create, and delete. 
+        It ensures transparency and monitoring through detailed audit logs, supporting compliance and system audit.
+        
+        Key Features:
+        * User Activity Tracking (CRUD operations)
+        * Session Monitoring with IP, Device, and Location tracking
+        * Automatic Activity Recording linked to sessions
+        * Configurable audit settings for users and models
+        * Access-based session control
+        * Detailed audit logs with filtering capabilities
+        * Support for all models including third-party modules
+    """,
 
-    # Categories can be used to filter modules in modules listing
-    # Check https://github.com/odoo/odoo/blob/16.0/odoo/addons/base/data/ir_module_category_data.xml
-    # for the full list
-    'category': 'Uncategorized',
-    'version': '0.1',
+    'author': "Peepl Solutions",
+    'website': "https://www.peepl.com",
+    'category': 'Administration',
+    'version': '16.0.1.0.0',
+    'license': 'LGPL-3',
 
-    # any module necessary for this one to work correctly
-    'depends': ['base'],
+    # Dependencies
+    'depends': [
+        'base',
+        'web',
+        'mail',
+    ],
 
-    # always loaded
+    # Data files
     'data': [
-        # 'security/ir.model.access.csv',
-        'views/views.xml',
-        'views/templates.xml',
+        'security/audit_security.xml',
+        'security/ir.model.access.csv',
+        'data/audit_data.xml',
+        'wizard/audit_clear_wizard_views.xml',  # Move wizard before config views
+        'views/audit_config_views.xml',
+        'views/audit_session_views.xml',
+        'views/audit_log_views.xml',
+        'views/audit_menus.xml',
     ],
-    # only loaded in demonstration mode
+
+    # Demo data
     'demo': [
-        'demo/demo.xml',
+        'demo/audit_demo.xml',
     ],
+
+    'installable': True,
+    'application': True,
+    'auto_install': False,
 }

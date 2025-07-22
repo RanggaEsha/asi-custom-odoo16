@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Audit Dashboard Template -->
+        <template id="audit_dashboard" name="Audit Dashboard">
+            <t t-call="web.layout">
+                <t t-set="title">User Audit Dashboard</t>
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="page-header">
+                                <h1>User Audit Dashboard</h1>
+                                <p class="lead">Monitor your session and activity information</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <!-- Current Session Info -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Current Session</h3>
+                                </div>
+                                <div class="card-body">
+                                    <t t-if="current_session">
+                                        <table class="table table-sm">
+                                            <tr>
+                                                <td><strong>Login Time:</strong></td>
+                                                <td><t t-esc="current_session.login_time"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>IP Address:</strong></td>
+                                                <td><t t-esc="current_session.ip_address"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Device:</strong></td>
+                                                <td><t t-esc="current_session.device_type"/> - <t t-esc="current_session.browser"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Location:</strong></td>
+                                                <td><t t-esc="current_session.city"/>, <t t-esc="current_session.country"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Activities:</strong></td>
+                                                <td><t t-esc="current_session.log_count"/></td>
+                                            </tr>
+                                        </table>
+                                    </t>
+                                    <t t-else="">
+                                        <p class="text-muted">No active session found</p>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Recent Activity</h3>
+                                </div>
+                                <div class="card-body">
+                                    <t t-if="recent_activity">
+                                        <div class="timeline" style="max-height: 300px; overflow-y: auto;">
+                                            <t t-foreach="recent_activity[:10]" t-as="activity">
+                                                <div class="timeline-item">
+                                                    <div class="timeline-point" t-attf-class="bg-#{activity.action_type == 'create' and 'success' or activity.action_type == 'write' and 'warning' or activity.action_type == 'unlink' and 'danger' or 'info'}"></div>
+                                                    <div class="timeline-content">
+                                                        <small class="text-muted"><t t-esc="activity.action_date"/></small><br/>
+                                                        <strong t-esc="activity.action_type.title()"/> 
+                                                        <span t-esc="activity.model_name"/> 
+                                                        (<span t-esc="activity.res_name"/>)
+                                                    </div>
+                                                </div>
+                                            </t>
+                                        </div>
+                                    </t>
+                                    <t t-else="">
+                                        <p class="text-muted">No recent activity</p>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-4">
+                        <!-- Recent Sessions -->
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3 class="card-title">Recent Sessions</h3>
+                                </div>
+                                <div class="card-body">
+                                    <t t-if="recent_sessions">
+                                        <div class="table-responsive">
+                                            <table class="table table-striped">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Status</th>
+                                                        <th>Login Time</th>
+                                                        <th>Logout Time</th>
+                                                        <th>Duration</th>
+                                                        <th>Device</th>
+                                                        <th>Location</th>
+                                                        <th>Activities</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <t t-foreach="recent_sessions" t-as="session">
+                                                        <tr>
+                                                            <td>
+                                                                <span t-attf-class="badge badge-#{session.status == 'active' and 'success' or session.status == 'logged_out' and 'secondary' or session.status == 'expired' and 'warning' or 'danger'}"
+                                                                      t-esc="session.status.replace('_', ' ').title()"/>
+                                                            </td>
+                                                            <td><t t-esc="session.login_time"/></td>
+                                                            <td><t t-esc="session.logout_time or '-'"/></td>
+                                                            <td>
+                                                                <t t-if="session.duration">
+                                                                    <t t-esc="'%.1f' % session.duration"/> hours
+                                                                </t>
+                                                                <t t-else="">-</t>
+                                                            </td>
+                                                            <td><t t-esc="session.device_type"/> - <t t-esc="session.browser"/></td>
+                                                            <td><t t-esc="session.city"/>, <t t-esc="session.country"/></td>
+                                                            <td><t t-esc="session.log_count"/></td>
+                                                        </tr>
+                                                    </t>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </t>
+                                    <t t-else="">
+                                        <p class="text-muted">No recent sessions</p>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-4">
+                        <div class="col-12 text-center">
+                            <a href="/web#menu_id=peepl_audit_session.menu_my_sessions" class="btn btn-primary">View All My Sessions</a>
+                            <a href="/web#menu_id=peepl_audit_session.menu_my_audit_logs" class="btn btn-secondary ml-2">View All My Activity</a>
+                        </div>
+                    </div>
+                </div>
+            </t>
+        </template>
+
+        <!-- CSS Styles for Dashboard -->
+        <template id="audit_dashboard_assets" name="Audit Dashboard Assets">
+            <style>
+                .timeline {
+                    position: relative;
+                    padding-left: 30px;
+                }
+                .timeline-item {
+                    position: relative;
+                    margin-bottom: 20px;
+                    padding-left: 25px;
+                }
+                .timeline-item:before {
+                    content: '';
+                    position: absolute;
+                    left: -15px;
+                    top: 0;
+                    bottom: -20px;
+                    width: 2px;
+                    background: #dee2e6;
+                }
+                .timeline-item:last-child:before {
+                    display: none;
+                }
+                .timeline-point {
+                    position: absolute;
+                    left: -20px;
+                    top: 5px;
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 50%;
+                    border: 2px solid #fff;
+                    box-shadow: 0 0 0 2px #dee2e6;
+                }
+                .timeline-content {
+                    background: #f8f9fa;
+                    border-radius: 4px;
+                    padding: 10px;
+                    border-left: 3px solid #dee2e6;
+                }
+                .card {
+                    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+                    border: 1px solid rgba(0, 0, 0, 0.125);
+                }
+                .page-header {
+                    margin-bottom: 2rem;
+                    padding-bottom: 1rem;
+                    border-bottom: 2px solid #dee2e6;
+                }
+            </style>
+        </template>
+
+    </data>
+</odoo>

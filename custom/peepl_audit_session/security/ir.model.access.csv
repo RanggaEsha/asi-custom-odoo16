@@ -1,2 +1,9 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_peepl_audit_session_peepl_audit_session,peepl_audit_session.peepl_audit_session,model_peepl_audit_session_peepl_audit_session,base.group_user,1,1,1,1
+access_audit_config_manager,audit.config manager,model_audit_config,group_audit_manager,1,1,1,1
+access_audit_config_user_manager,audit.config.user manager,model_audit_config_user,group_audit_manager,1,1,1,1
+access_audit_config_object_manager,audit.config.object manager,model_audit_config_object,group_audit_manager,1,1,1,1
+access_audit_log_entry_user,audit.log.entry user,model_audit_log_entry,group_audit_user,1,0,0,0
+access_audit_log_entry_manager,audit.log.entry manager,model_audit_log_entry,group_audit_manager,1,1,1,1
+access_audit_session_user,audit.session user,model_audit_session,group_audit_user,1,0,0,0
+access_audit_session_manager,audit.session manager,model_audit_session,group_audit_manager,1,1,1,1
+access_audit_clear_wizard_manager,audit.clear.wizard manager,model_audit_clear_wizard,group_audit_manager,1,1,1,1

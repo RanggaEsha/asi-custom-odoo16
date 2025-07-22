@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- Demo Users -->
+        <record id="demo_audit_user" model="res.users">
+            <field name="name">Demo Audit User</field>
+            <field name="login">audit_user</field>
+            <field name="password">audit_user</field>
+            <field name="email">audit.user@example.com</field>
+            <field name="groups_id" eval="[(6, 0, [ref('peepl_audit_session.group_audit_user'), ref('base.group_user')])]"/>
+        </record>
+
+        <record id="demo_audit_manager" model="res.users">
+            <field name="name">Demo Audit Manager</field>
+            <field name="login">audit_manager</field>
+            <field name="password">audit_manager</field>
+            <field name="email">audit.manager@example.com</field>
+            <field name="groups_id" eval="[(6, 0, [ref('peepl_audit_session.group_audit_manager'), ref('base.group_user')])]"/>
+        </record>
+
+        <!-- Demo Sessions -->
+        <record id="demo_session_1" model="audit.session">
+            <field name="user_id" ref="demo_audit_user"/>
+            <field name="session_id">demo_session_001</field>
+            <field name="login_time" eval="(datetime.now() - timedelta(hours=2))"/>
+            <field name="status">active</field>
+            <field name="ip_address">192.168.1.100</field>
+            <field name="device_type">desktop</field>
+            <field name="browser">Chrome 119.0</field>
+            <field name="os">Windows 11</field>
+            <field name="country">United States</field>
+            <field name="city">New York</field>
+        </record>
+
+        <record id="demo_session_2" model="audit.session">
+            <field name="user_id" ref="demo_audit_manager"/>
+            <field name="session_id">demo_session_002</field>
+            <field name="login_time" eval="(datetime.now() - timedelta(hours=1))"/>
+            <field name="logout_time" eval="(datetime.now() - timedelta(minutes=30))"/>
+            <field name="status">logged_out</field>
+            <field name="ip_address">192.168.1.101</field>
+            <field name="device_type">mobile</field>
+            <field name="browser">Safari 17.0</field>
+            <field name="os">iOS 17.1</field>
+            <field name="country">Canada</field>
+            <field name="city">Toronto</field>
+        </record>
+
+        <!-- Demo Log Entries -->
+        <record id="demo_log_1" model="audit.log.entry">
+            <field name="user_id" ref="demo_audit_user"/>
+            <field name="session_id" ref="demo_session_1"/>
+            <field name="model_id" ref="base.model_res_partner"/>
+            <field name="res_id">1</field>
+            <field name="res_name">YourCompany</field>
+            <field name="action_type">read</field>
+            <field name="action_date" eval="(datetime.now() - timedelta(hours=2))"/>
+            <field name="method">read</field>
+        </record>
+
+        <record id="demo_log_2" model="audit.log.entry">
+            <field name="user_id" ref="demo_audit_manager"/>
+            <field name="session_id" ref="demo_session_2"/>
+            <field name="model_id" ref="base.model_res_users"/>
+            <field name="res_id" ref="demo_audit_user"/>
+            <field name="res_name">Demo Audit User</field>
+            <field name="action_type">write</field>
+            <field name="action_date" eval="(datetime.now() - timedelta(hours=1))"/>
+            <field name="method">write</field>
+            <field name="old_values">{"email": "old.email@example.com"}</field>
+            <field name="new_values">{"email": "audit.user@example.com"}</field>
+            <field name="changed_fields">["email"]</field>
+        </record>
+
+        <record id="demo_log_3" model="audit.log.entry">
+            <field name="user_id" ref="demo_audit_user"/>
+            <field name="session_id" ref="demo_session_1"/>
+            <field name="model_id" ref="base.model_res_partner"/>
+            <field name="res_id">999</field>
+            <field name="res_name">Demo Partner</field>
+            <field name="action_type">create</field>
+            <field name="action_date" eval="(datetime.now() - timedelta(minutes=30))"/>
+            <field name="method">create</field>
+            <field name="new_values">{"name": "Demo Partner", "email": "demo@example.com"}</field>
+        </record>
+
+        <!-- Demo Configuration for Testing -->
+        <record id="demo_audit_config" model="audit.config">
+            <field name="name">Demo Test Configuration</field>
+            <field name="active">False</field>
+            <field name="log_read">True</field>
+            <field name="log_write">True</field>
+            <field name="log_create">True</field>
+            <field name="log_unlink">False</field>
+            <field name="all_users">False</field>
+            <field name="all_objects">False</field>
+            <field name="auto_cleanup_days">30</field>
+            <field name="session_timeout_hours">8</field>
+        </record>
+
+        <!-- Demo Config Users -->
+        <record id="demo_config_user_1" model="audit.config.user">
+            <field name="config_id" ref="demo_audit_config"/>
+            <field name="user_id" ref="demo_audit_user"/>
+        </record>
+
+        <!-- Demo Config Objects -->
+        <record id="demo_config_object_1" model="audit.config.object">
+            <field name="config_id" ref="demo_audit_config"/>
+            <field name="model_id" ref="base.model_res_partner"/>
+        </record>
+
+    </data>
+</odoo>

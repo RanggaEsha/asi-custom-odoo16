@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Audit Log Entry Tree View -->
+        <record id="audit_log_entry_tree" model="ir.ui.view">
+            <field name="name">audit.log.entry.tree</field>
+            <field name="model">audit.log.entry</field>
+            <field name="arch" type="xml">
+                <tree string="Audit Logs" decoration-info="action_type=='read'" 
+                      decoration-success="action_type=='create'" 
+                      decoration-warning="action_type=='write'" 
+                      decoration-danger="action_type=='unlink'">
+                    <field name="action_date"/>
+                    <field name="user_id"/>
+                    <field name="action_type" widget="badge"
+                           decoration-info="action_type=='read'"
+                           decoration-success="action_type=='create'"
+                           decoration-warning="action_type=='write'"
+                           decoration-danger="action_type=='unlink'"/>
+                    <field name="model_name"/>
+                    <field name="res_name"/>
+                    <field name="res_id"/>
+                    <field name="session_id"/>
+                    <field name="method"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Audit Log Entry Form View -->
+        <record id="audit_log_entry_form" model="ir.ui.view">
+            <field name="name">audit.log.entry.form</field>
+            <field name="model">audit.log.entry</field>
+            <field name="arch" type="xml">
+                <form string="Audit Log Entry" create="false" edit="false" delete="false">
+                    <header>
+                        <field name="action_type" widget="statusbar"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_title">
+                            <h1><field name="name"/></h1>
+                        </div>
+                        
+                        <group>
+                            <group string="Action Details">
+                                <field name="user_id"/>
+                                <field name="action_date"/>
+                                <field name="action_type"/>
+                                <field name="method"/>
+                            </group>
+                            <group string="Record Details">
+                                <field name="model_id"/>
+                                <field name="model_name"/>
+                                <field name="res_id"/>
+                                <field name="res_name"/>
+                            </group>
+                        </group>
+                        
+                        <group string="Session Info">
+                            <field name="session_id"/>
+                        </group>
+                        
+                        <notebook>
+                            <page string="Changes" attrs="{'invisible': [('action_type', '=', 'read')]}">
+                                <group>
+                                    <group string="Old Values" attrs="{'invisible': [('old_values', '=', False)]}">
+                                        <field name="old_values" widget="text" nolabel="1"/>
+                                    </group>
+                                    <group string="New Values" attrs="{'invisible': [('new_values', '=', False)]}">
+                                        <field name="new_values" widget="text" nolabel="1"/>
+                                    </group>
+                                </group>
+                                <group string="Changed Fields" attrs="{'invisible': [('changed_fields', '=', False)]}">
+                                    <field name="changed_fields" widget="text" nolabel="1"/>
+                                </group>
+                            </page>
+                            <page string="Context Info" attrs="{'invisible': [('context_info', '=', False)]}">
+                                <field name="context_info" widget="text" nolabel="1"/>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Audit Log Entry Search View -->
+        <record id="audit_log_entry_search" model="ir.ui.view">
+            <field name="name">audit.log.entry.search</field>
+            <field name="model">audit.log.entry</field>
+            <field name="arch" type="xml">
+                <search string="Audit Logs">
+                    <field name="user_id"/>
+                    <field name="model_name"/>
+                    <field name="res_name"/>
+                    <field name="action_type"/>
+                    <field name="method"/>
+                    <filter string="Create" name="create" domain="[('action_type', '=', 'create')]"/>
+                    <filter string="Write" name="write" domain="[('action_type', '=', 'write')]"/>
+                    <filter string="Read" name="read" domain="[('action_type', '=', 'read')]"/>
+                    <filter string="Delete" name="unlink" domain="[('action_type', '=', 'unlink')]"/>
+                    <separator/>
+                    <filter string="Today" name="today" domain="[('action_date', '&gt;=', datetime.datetime.combine(context_today(), datetime.time(0,0,0)))]"/>
+                    <filter string="This Week" name="this_week" domain="[('action_date', '&gt;=', (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                    <filter string="This Month" name="this_month" domain="[('action_date', '&gt;=', (datetime.datetime.now() - datetime.timedelta(days=30)).strftime('%Y-%m-%d'))]"/>
+                    <separator/>
+                    <filter string="My Activities" name="my_activities" domain="[('user_id', '=', uid)]"/>
+                    <group expand="0" string="Group By">
+                        <filter string="User" name="group_by_user" context="{'group_by': 'user_id'}"/>
+                        <filter string="Action Type" name="group_by_action_type" context="{'group_by': 'action_type'}"/>
+                        <filter string="Model" name="group_by_model" context="{'group_by': 'model_name'}"/>
+                        <filter string="Method" name="group_by_method" context="{'group_by': 'method'}"/>
+                        <filter string="Date" name="group_by_date" context="{'group_by': 'action_date:day'}"/>
+                        <filter string="Session" name="group_by_session" context="{'group_by': 'session_id'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
+        <!-- Audit Log Entry Pivot View -->
+        <record id="audit_log_entry_pivot" model="ir.ui.view">
+            <field name="name">audit.log.entry.pivot</field>
+            <field name="model">audit.log.entry</field>
+            <field name="arch" type="xml">
+                <pivot string="Audit Log Analysis">
+                    <field name="user_id" type="row"/>
+                    <field name="action_type" type="col"/>
+                    <field name="action_date" type="row" interval="day"/>
+                </pivot>
+            </field>
+        </record>
+
+        <!-- Audit Log Entry Graph View -->
+        <record id="audit_log_entry_graph" model="ir.ui.view">
+            <field name="name">audit.log.entry.graph</field>
+            <field name="model">audit.log.entry</field>
+            <field name="arch" type="xml">
+                <graph string="Audit Log Analysis" type="bar">
+                    <field name="action_type"/>
+                    <field name="action_date" interval="day"/>
+                </graph>
+            </field>
+        </record>
+
+        <!-- Audit Log Entry Action -->
+        <record id="action_audit_log_entry" model="ir.actions.act_window">
+            <field name="name">Audit Logs</field>
+            <field name="res_model">audit.log.entry</field>
+            <field name="view_mode">tree,form,pivot,graph</field>
+            <field name="context">{'search_default_today': 1, 'search_default_group_by_action_type': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No audit logs found!
+                </p>
+                <p>
+                    Audit logs are automatically created when users perform tracked operations.
+                    Configure audit settings to start logging user activities.
+                </p>
+            </field>
+        </record>
+
+        <!-- My Audit Logs Action (for regular users) -->
+        <record id="action_my_audit_logs" model="ir.actions.act_window">
+            <field name="name">My Activity Logs</field>
+            <field name="res_model">audit.log.entry</field>
+            <field name="view_mode">tree,form</field>
+            <field name="domain">[('user_id', '=', uid)]</field>
+            <field name="context">{'search_default_today': 1, 'search_default_group_by_action_type': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No activity logs found!
+                </p>
+                <p>
+                    Your activities are automatically logged when you perform tracked operations.
+                </p>
+            </field>
+        </record>
+
+        <!-- My Sessions Action (for regular users) -->
+        <record id="action_my_sessions" model="ir.actions.act_window">
+            <field name="name">My Sessions</field>
+            <field name="res_model">audit.session</field>
+            <field name="view_mode">tree,kanban,form</field>
+            <field name="domain">[('user_id', '=', uid)]</field>
+            <field name="context">{'search_default_today': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No sessions found!
+                </p>
+                <p>
+                    Your sessions are automatically tracked when you log in.
+                </p>
+            </field>
+        </record>
+
+    </data>
+</odoo>
