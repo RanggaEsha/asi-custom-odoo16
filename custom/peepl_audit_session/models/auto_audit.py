@@ -222,18 +222,23 @@ class BaseModelOptimized(models.AbstractModel):
                 latest_session.sudo().write({'session_id': session_sid})
                 return latest_session.id
             
-            # STEP 3: FALLBACK - Create emergency session (login hook might have failed)
+            # STEP 3: FALLBACK - Create emergency session with comprehensive device info
             _logger.error(f"EMERGENCY SESSION CREATION - No active session found for user {user_id}")
             
-            emergency_session = self.env['audit.session'].sudo().create({
+            # Use the same device extraction method as regular session creation
+            session_model = self.env['audit.session']
+            request_info = session_model.extract_request_info()
+            
+            session_values = {
                 'user_id': user_id,
                 'session_id': session_sid,
                 'login_time': fields.Datetime.now(),
                 'status': 'active',
-                'ip_address': getattr(request.httprequest, 'remote_addr', 'unknown') if hasattr(request, 'httprequest') else 'unknown',
-                'device_type': 'unknown',
                 'error_message': 'Emergency session created during action (login hook may have failed)'
-            })
+            }
+            session_values.update(request_info)
+            
+            emergency_session = self.env['audit.session'].sudo().create(session_values)
             
             # Commit immediately to ensure availability
             self.env.cr.commit()

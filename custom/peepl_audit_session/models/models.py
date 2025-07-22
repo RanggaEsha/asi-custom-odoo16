@@ -200,31 +200,133 @@ class AuditSession(models.Model):
             'context': {'default_session_id': self.id}
         }
 
+
+    @api.model
+    def extract_request_info(self, request_obj=None):
+        """Extract comprehensive request information including device details"""
+        info = {
+            'ip_address': 'unknown',
+            'user_agent': '',
+            'device_name': '',
+            'device_type': 'unknown',
+            'browser': 'Unknown',
+            'os': 'Unknown',
+            'country': None,
+            'city': None,
+            'latitude': None,
+            'longitude': None
+        }
+        
+        try:
+            if not request_obj:
+                # Try to get from current request context
+                from odoo.http import request
+                request_obj = request
+                
+            if request_obj and hasattr(request_obj, 'httprequest'):
+                # Extract basic request info
+                info['ip_address'] = getattr(request_obj.httprequest, 'remote_addr', 'unknown')
+                headers = getattr(request_obj.httprequest, 'headers', {})
+                info['user_agent'] = headers.get('User-Agent', '') if headers else ''
+                
+                # Parse user agent for device information
+                if info['user_agent']:
+                    device_info = self.parse_user_agent(info['user_agent'])
+                    info.update(device_info)
+                
+                # Get location information (if IP is available and not local)
+                if info['ip_address'] and info['ip_address'] not in ['127.0.0.1', 'localhost', 'unknown']:
+                    location_info = self.get_location_from_ip(info['ip_address'])
+                    info.update(location_info)
+                    
+        except Exception as e:
+            _logger.warning(f"Failed to extract request info: {e}")
+            
+        return info
+
     def parse_user_agent(self, user_agent_string):
-        """Parse user agent string to extract device info"""
+        """Enhanced user agent parsing with fallbacks"""
         if not user_agent_string:
-            return {}
+            return {
+                'browser': 'Unknown',
+                'os': 'Unknown', 
+                'device_name': '',
+                'device_type': 'unknown'
+            }
             
         try:
+            # Try to import user_agents library
+            from user_agents import parse
             ua = parse(user_agent_string)
+            
             return {
-                'browser': f"{ua.browser.family} {ua.browser.version_string}",
-                'os': f"{ua.os.family} {ua.os.version_string}",
-                'device_name': ua.device.family,
+                'browser': f"{ua.browser.family} {ua.browser.version_string}".strip(),
+                'os': f"{ua.os.family} {ua.os.version_string}".strip(),
+                'device_name': ua.device.family if ua.device.family != 'Other' else '',
                 'device_type': 'mobile' if ua.is_mobile else 'tablet' if ua.is_tablet else 'desktop'
             }
+            
+        except ImportError:
+            _logger.warning("user_agents library not available, using basic parsing")
+            # Fallback to basic parsing
+            return self._basic_user_agent_parse(user_agent_string)
         except Exception as e:
-            _logger.warning(f"Failed to parse user agent: {e}")
-            return {}
+            _logger.warning(f"Failed to parse user agent '{user_agent_string}': {e}")
+            return self._basic_user_agent_parse(user_agent_string)
+
+    def _basic_user_agent_parse(self, user_agent_string):
+        """Basic user agent parsing fallback"""
+        ua_lower = user_agent_string.lower()
+        
+        # Detect browser
+        browser = 'Unknown'
+        if 'chrome' in ua_lower:
+            browser = 'Chrome'
+        elif 'firefox' in ua_lower:
+            browser = 'Firefox'
+        elif 'safari' in ua_lower and 'chrome' not in ua_lower:
+            browser = 'Safari'
+        elif 'edge' in ua_lower:
+            browser = 'Edge'
+        elif 'opera' in ua_lower:
+            browser = 'Opera'
+        
+        # Detect OS
+        os_name = 'Unknown'
+        if 'windows' in ua_lower:
+            os_name = 'Windows'
+        elif 'mac' in ua_lower or 'osx' in ua_lower:
+            os_name = 'macOS'
+        elif 'linux' in ua_lower:
+            os_name = 'Linux'
+        elif 'android' in ua_lower:
+            os_name = 'Android'
+        elif 'ios' in ua_lower or 'iphone' in ua_lower or 'ipad' in ua_lower:
+            os_name = 'iOS'
+        
+        # Detect device type
+        device_type = 'desktop'
+        if any(mobile in ua_lower for mobile in ['mobile', 'android', 'iphone']):
+            device_type = 'mobile'
+        elif any(tablet in ua_lower for tablet in ['tablet', 'ipad']):
+            device_type = 'tablet'
+        
+        return {
+            'browser': browser,
+            'os': os_name,
+            'device_name': '',
+            'device_type': device_type
+        }
 
     def get_location_from_ip(self, ip_address):
-        """Get location info from IP address"""
-        if not ip_address or ip_address in ['127.0.0.1', 'localhost']:
+        """Enhanced IP geolocation with multiple fallbacks"""
+        if not ip_address or ip_address in ['127.0.0.1', 'localhost', 'unknown']:
             return {}
             
         try:
-            # Using a free IP geolocation service
-            response = requests.get(f'http://ip-api.com/json/{ip_address}', timeout=5)
+            # Try primary service (ip-api.com)
+            import requests
+            response = requests.get(f'http://ip-api.com/json/{ip_address}', timeout=3)
             if response.status_code == 200:
                 data = response.json()
                 if data.get('status') == 'success':
@@ -235,12 +337,28 @@ class AuditSession(models.Model):
                         'longitude': data.get('lon')
                     }
         except Exception as e:
-            _logger.warning(f"Failed to get location for IP {ip_address}: {e}")
+            _logger.debug(f"Primary geolocation service failed for {ip_address}: {e}")
+            
+        try:
+            # Fallback service (ipinfo.io)
+            response = requests.get(f'http://ipinfo.io/{ip_address}/json', timeout=3)
+            if response.status_code == 200:
+                data = response.json()
+                location = data.get('loc', '').split(',')
+                return {
+                    'country': data.get('country'),
+                    'city': data.get('city'),
+                    'latitude': float(location[0]) if len(location) >= 2 else None,
+                    'longitude': float(location[1]) if len(location) >= 2 else None
+                }
+        except Exception as e:
+            _logger.debug(f"Fallback geolocation service failed for {ip_address}: {e}")
+            
         return {}
 
     @api.model
     def create_session(self, user_id, session_id, request_obj=None):
-        """FIXED: Create a new audit session with better consistency and debugging"""
+        """ENHANCED: Create session with comprehensive device information"""
         try:
             # Skip during module installation
             if self.env.context.get('module') or self.env.context.get('install_mode'):
@@ -251,57 +369,57 @@ class AuditSession(models.Model):
             if not self.env.cr.fetchone():
                 return None
         
-            # Debug logging
-            _logger.info(f"CREATE_SESSION DEBUG - Creating session for user {user_id} with session_id {session_id}")
+            _logger.info(f"CREATE_SESSION - Creating session for user {user_id} with session_id {session_id}")
             
-            # CRITICAL: Check if session already exists BEFORE creating
+            # Check if session already exists
             existing_session = self.sudo().search([
                 ('session_id', '=', session_id),
                 ('user_id', '=', user_id)
             ], limit=1)
             
             if existing_session:
-                _logger.info(f"CREATE_SESSION DEBUG - Session already exists {existing_session.id}, "
-                           f"updating instead of creating new one")
-                # Update existing session instead of creating new one
+                _logger.info(f"CREATE_SESSION - Updating existing session {existing_session.id}")
+                
+                # Extract fresh request info for the update
+                request_info = self.extract_request_info(request_obj)
+                
                 existing_session.sudo().write({
                     'login_time': fields.Datetime.now(),
                     'status': 'active',
                     'error_message': False,
+                    # Update technical info in case it changed
+                    'ip_address': request_info['ip_address'],
+                    'user_agent': request_info['user_agent'],
+                    'device_name': request_info['device_name'],
+                    'device_type': request_info['device_type'],
+                    'browser': request_info['browser'],
+                    'os': request_info['os'],
+                    'country': request_info['country'],
+                    'city': request_info['city'],
+                    'latitude': request_info['latitude'],
+                    'longitude': request_info['longitude'],
                 })
                 return existing_session
             
+            # Extract comprehensive request information
+            request_info = self.extract_request_info(request_obj)
+            
+            # Create session values
             values = {
                 'user_id': user_id,
                 'session_id': session_id,
                 'login_time': fields.Datetime.now(),
                 'status': 'active'
             }
-            
-            if request_obj and hasattr(request_obj, 'httprequest'):
-                # Extract request information safely
-                values['ip_address'] = getattr(request_obj.httprequest, 'remote_addr', None)
-                headers = getattr(request_obj.httprequest, 'headers', {})
-                values['user_agent'] = headers.get('User-Agent', '') if headers else ''
-                
-                # Parse user agent
-                if values['user_agent']:
-                    ua_info = self.parse_user_agent(values['user_agent'])
-                    values.update(ua_info)
-                
-                # Get location info
-                if values.get('ip_address'):
-                    location_info = self.get_location_from_ip(values['ip_address'])
-                    values.update(location_info)
+            values.update(request_info)
             
             # Create the session
             session = self.sudo().create(values)
-            _logger.info(f"CREATE_SESSION DEBUG - Successfully created session {session.id} "
-                        f"for user {user_id} with session_id {session_id}")
+            _logger.info(f"CREATE_SESSION - Successfully created session {session.id} with device info: "
+                        f"Type={session.device_type}, Browser={session.browser}, OS={session.os}")
             
-            # Immediate commit to ensure the session is available for subsequent operations
+            # Immediate commit to ensure availability
             self.env.cr.commit()
-            
             return session
             
         except Exception as e:
