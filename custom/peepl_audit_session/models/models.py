@@ -240,7 +240,7 @@ class AuditSession(models.Model):
 
     @api.model
     def create_session(self, user_id, session_id, request_obj=None):
-        """Create a new audit session"""
+        """FIXED: Create a new audit session with better error handling"""
         try:
             # Skip during module installation
             if self.env.context.get('module') or self.env.context.get('install_mode'):
@@ -258,50 +258,67 @@ class AuditSession(models.Model):
                 'status': 'active'
             }
             
-            if request_obj:
-                # Extract request information
-                values['ip_address'] = request_obj.httprequest.remote_addr
-                values['user_agent'] = request_obj.httprequest.headers.get('User-Agent', '')
+            if request_obj and hasattr(request_obj, 'httprequest'):
+                # Extract request information safely
+                values['ip_address'] = getattr(request_obj.httprequest, 'remote_addr', None)
+                headers = getattr(request_obj.httprequest, 'headers', {})
+                values['user_agent'] = headers.get('User-Agent', '') if headers else ''
                 
                 # Parse user agent
-                ua_info = self.parse_user_agent(values['user_agent'])
-                values.update(ua_info)
+                if values['user_agent']:
+                    ua_info = self.parse_user_agent(values['user_agent'])
+                    values.update(ua_info)
                 
                 # Get location info
-                location_info = self.get_location_from_ip(values['ip_address'])
-                values.update(location_info)
+                if values.get('ip_address'):
+                    location_info = self.get_location_from_ip(values['ip_address'])
+                    values.update(location_info)
             
-            return self.create(values)
+            # FIXED: Use create instead of self.create for better reliability
+            session = self.sudo().create(values)
+            _logger.info(f"Created audit session {session.id} for user {user_id} with session_id {session_id}")
+            return session
             
         except Exception as e:
-            _logger.debug(f"Failed to create audit session: {e}")
+            _logger.warning(f"Failed to create audit session: {e}")
             return None
 
     def close_session(self):
         """Close the session"""
-        self.write({
-            'logout_time': fields.Datetime.now(),
-            'status': 'logged_out'
-        })
+        try:
+            self.sudo().write({
+                'logout_time': fields.Datetime.now(),
+                'status': 'logged_out'
+            })
+            _logger.info(f"Closed audit session {self.id}")
+        except Exception as e:
+            _logger.error(f"Failed to close session {self.id}: {e}")
 
     @api.model
     def cleanup_expired_sessions(self):
         """Cleanup expired sessions (called by cron)"""
-        timeout_hours = 24  # Default timeout
-        
-        # Get timeout from configuration
-        config = self.env['audit.config'].get_active_config()
-        if config:
-            timeout_hours = config.session_timeout_hours
+        try:
+            timeout_hours = 24  # Default timeout
             
-        cutoff_time = datetime.now() - timedelta(hours=timeout_hours)
-        expired_sessions = self.search([
-            ('status', '=', 'active'),
-            ('login_time', '<', cutoff_time)
-        ])
-        
-        expired_sessions.write({'status': 'expired'})
-        return len(expired_sessions)
+            # Get timeout from configuration
+            config = self.env['audit.config'].search([('active', '=', True)], limit=1)
+            if config and config.session_timeout_hours:
+                timeout_hours = config.session_timeout_hours
+                
+            cutoff_time = datetime.now() - timedelta(hours=timeout_hours)
+            expired_sessions = self.search([
+                ('status', '=', 'active'),
+                ('login_time', '<', cutoff_time)
+            ])
+            
+            if expired_sessions:
+                expired_sessions.write({'status': 'expired'})
+                _logger.info(f"Marked {len(expired_sessions)} sessions as expired")
+                
+            return len(expired_sessions)
+        except Exception as e:
+            _logger.error(f"Failed to cleanup expired sessions: {e}")
+            return 0
 
 
 class AuditLogEntry(models.Model):

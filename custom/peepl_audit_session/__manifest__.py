@@ -50,7 +50,11 @@
     'demo': [
         'demo/audit_demo.xml',
     ],
-
+    'assets': {
+        'web.assets_backend': [
+            'peepl_audit_session/static/src/js/logout.js',
+        ],
+    },
     'installable': True,
     'application': True,
     'auto_install': False,

@@ -41,16 +41,17 @@ class BaseModelOptimized(models.AbstractModel):
         if not self.env.user or self.env.user.id in (1, 2):  # Skip superuser and public
             return False
             
-        # PERFORMANCE: Cache config check
-        if not hasattr(self.env, '_audit_config_cache'):
+        # PERFORMANCE: Cache config check with better cache key
+        cache_key = f'_audit_config_cache_{self.env.user.id}'
+        if not hasattr(self.env, cache_key):
             try:
                 config = self.env['audit.config'].sudo().search([('active', '=', True)], limit=1)
-                self.env._audit_config_cache = config
+                setattr(self.env, cache_key, config)
             except Exception:
-                self.env._audit_config_cache = None
+                setattr(self.env, cache_key, None)
                 return False
         
-        config = self.env._audit_config_cache
+        config = getattr(self.env, cache_key)
         if not config:
             return False
             
@@ -70,22 +71,28 @@ class BaseModelOptimized(models.AbstractModel):
             
         # Quick user check
         if not config.all_users:
-            if not hasattr(self.env, '_audit_users_cache'):
+            user_cache_key = f'_audit_users_cache_{config.id}'
+            if not hasattr(self.env, user_cache_key):
                 try:
-                    self.env._audit_users_cache = set(config.user_ids.mapped('user_id.id'))
+                    audit_users = set(config.user_ids.mapped('user_id.id'))
+                    setattr(self.env, user_cache_key, audit_users)
                 except Exception:
                     return False
-            if self.env.user.id not in self.env._audit_users_cache:
+            audit_users = getattr(self.env, user_cache_key)
+            if self.env.user.id not in audit_users:
                 return False
                 
-        # Quick model check  
+        # Quick model check - FIXED: Remove hardcoded model restriction
         if not config.all_objects:
-            if not hasattr(self.env, '_audit_models_cache'):
+            model_cache_key = f'_audit_models_cache_{config.id}'
+            if not hasattr(self.env, model_cache_key):
                 try:
-                    self.env._audit_models_cache = set(config.object_ids.mapped('model_id.model'))
+                    audit_models = set(config.object_ids.mapped('model_id.model'))
+                    setattr(self.env, model_cache_key, audit_models)
                 except Exception:
                     return False
-            if self._name not in self.env._audit_models_cache:
+            audit_models = getattr(self.env, model_cache_key)
+            if self._name not in audit_models:
                 return False
                 
         return True
@@ -95,13 +102,8 @@ class BaseModelOptimized(models.AbstractModel):
         """Override create with performance optimization"""
         records = super().create(vals_list)
         
-        # PERFORMANCE: Only check audit for important models
-        important_models = {
-            'res.users', 'res.partner', 'res.company', 'sale.order', 'purchase.order',
-            'account.move', 'stock.picking', 'project.project', 'hr.employee'
-        }
-        
-        if self._name in important_models and self._should_audit_operation('create'):
+        # FIXED: Remove hardcoded model restriction, rely on configuration only
+        if self._should_audit_operation('create'):
             try:
                 session_id = self._get_current_session_id()
                 for record, vals in zip(records, vals_list):
@@ -116,14 +118,9 @@ class BaseModelOptimized(models.AbstractModel):
         if not vals:
             return super().write(vals)
             
-        # PERFORMANCE: Only check audit for important models
-        important_models = {
-            'res.users', 'res.partner', 'res.company', 'sale.order', 'purchase.order',
-            'account.move', 'stock.picking', 'project.project', 'hr.employee'
-        }
-        
+        # FIXED: Remove hardcoded model restriction, rely on configuration only
         old_values_by_record = {}
-        if self._name in important_models and self._should_audit_operation('write'):
+        if self._should_audit_operation('write'):
             try:
                 session_id = self._get_current_session_id()
                 # Only store old values for fields being changed
@@ -156,14 +153,9 @@ class BaseModelOptimized(models.AbstractModel):
 
     def unlink(self):
         """Override unlink with performance optimization"""
-        # PERFORMANCE: Only check audit for important models
-        important_models = {
-            'res.users', 'res.partner', 'res.company', 'sale.order', 'purchase.order',
-            'account.move', 'stock.picking', 'project.project', 'hr.employee'
-        }
-        
+        # FIXED: Remove hardcoded model restriction, rely on configuration only
         records_info = []
-        if self._name in important_models and self._should_audit_operation('unlink'):
+        if self._should_audit_operation('unlink'):
             try:
                 session_id = self._get_current_session_id()
                 for record in self:
@@ -188,24 +180,48 @@ class BaseModelOptimized(models.AbstractModel):
                     
         return result
 
-    # REMOVED READ OVERRIDE - Too much performance impact
-    # Read operations are logged via access control if needed
-
     def _get_current_session_id(self):
-        """Get current session ID with caching"""
+        """FIXED: Get current session ID with improved logic"""
         try:
-            if not hasattr(self.env, '_current_session_cache'):
-                if request and hasattr(request, 'session') and request.session.uid:
-                    session = self.env['audit.session'].sudo().search([
-                        ('session_id', '=', request.session.sid),
-                        ('user_id', '=', request.session.uid),
-                        ('status', '=', 'active')
-                    ], limit=1)
-                    self.env._current_session_cache = session.id if session else None
-                else:
-                    self.env._current_session_cache = None
-            return self.env._current_session_cache
-        except Exception:
+            if not request or not hasattr(request, 'session'):
+                return None
+                
+            session_sid = getattr(request.session, 'sid', None)
+            user_id = self.env.user.id
+            
+            if not session_sid or not user_id:
+                return None
+            
+            # Look for existing session
+            session = self.env['audit.session'].sudo().search([
+                ('session_id', '=', session_sid),
+                ('user_id', '=', user_id),
+                ('status', '=', 'active')
+            ], limit=1)
+            
+            if session:
+                return session.id
+            
+            # If no session found, create one
+            _logger.info(f"Creating missing audit session for user {user_id}")
+            new_session = self.env['audit.session'].sudo().create({
+                'user_id': user_id,
+                'session_id': session_sid,
+                'login_time': fields.Datetime.now(),
+                'status': 'active',
+                'ip_address': getattr(request.httprequest, 'remote_addr', 'unknown') if hasattr(request, 'httprequest') else 'unknown',
+                'device_type': 'desktop'
+            })
+            
+            if new_session:
+                # Commit to make session available immediately
+                self.env.cr.commit()
+                return new_session.id
+                
+            return None
+            
+        except Exception as e:
+            _logger.warning(f"Failed to get current session: {e}")
             return None
 
     def _create_audit_log(self, action_type, res_id, old_values=None, new_values=None, session_id=None):
@@ -221,14 +237,24 @@ class BaseModelOptimized(models.AbstractModel):
                 'method': action_type,
             }
             
-            # Get model ID (cached)
-            if not hasattr(self.env, f'_model_id_cache_{self._name}'):
+            # Get model ID (cached per model)
+            model_cache_key = f'_model_id_cache_{self._name}'
+            if not hasattr(self.env, model_cache_key):
                 model = self.env['ir.model'].sudo().search([('model', '=', self._name)], limit=1)
-                setattr(self.env, f'_model_id_cache_{self._name}', model.id if model else None)
+                setattr(self.env, model_cache_key, model.id if model else None)
             
-            model_id = getattr(self.env, f'_model_id_cache_{self._name}')
+            model_id = getattr(self.env, model_cache_key)
             if model_id:
                 audit_vals['model_id'] = model_id
+                
+                # Get record name for better identification
+                try:
+                    if action_type != 'unlink':
+                        record = self.browse(res_id)
+                        if record.exists():
+                            audit_vals['res_name'] = record.display_name
+                except Exception:
+                    audit_vals['res_name'] = f"ID: {res_id}"
                 
                 # Add values if provided
                 if old_values:
@@ -241,10 +267,3 @@ class BaseModelOptimized(models.AbstractModel):
                 
         except Exception as e:
             _logger.debug(f"Failed to create audit log: {e}")
-
-
-# Disable problematic access control auditing for now
-# class IrModelAccess(models.Model):
-#     """Extend model access to log access attempts"""
-#     _inherit = 'ir.model.access'
-#     # DISABLED for performance
