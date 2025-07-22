@@ -6,6 +6,7 @@
         <record id="default_audit_config" model="audit.config">
             <field name="name">Default Audit Configuration</field>
             <field name="active">True</field>
+            <field name="enable_auditing">True</field>
             <field name="log_read">False</field>
             <field name="log_write">True</field>
             <field name="log_create">True</field>

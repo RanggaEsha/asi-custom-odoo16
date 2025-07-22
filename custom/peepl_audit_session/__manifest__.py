@@ -38,12 +38,12 @@
     'data': [
         'security/audit_security.xml',
         'security/ir.model.access.csv',
-        'data/audit_data.xml',
-        'wizard/audit_clear_wizard_views.xml',  # Move wizard before config views
+        'wizard/audit_clear_wizard_views.xml',
         'views/audit_config_views.xml',
         'views/audit_session_views.xml',
         'views/audit_log_views.xml',
         'views/audit_menus.xml',
+        'data/audit_data.xml',
     ],
 
     # Demo data

@@ -10,52 +10,6 @@ _logger = logging.getLogger(__name__)
 class AuditController(http.Controller):
     """Controller for audit session management"""
 
-    @http.route('/web/session/authenticate', type='json', auth="none", methods=['POST'], csrf=False)
-    def authenticate(self, db, login, password, base_location=None):
-        """Override session authentication to create audit session"""
-        # Call original authentication
-        try:
-            result = request.session.authenticate(db, login, password)
-            
-            if result:
-                # Create audit session
-                try:
-                    audit_session = request.env['audit.session'].sudo().create_session(
-                        user_id=request.session.uid,
-                        session_id=request.session.sid,
-                        request_obj=request
-                    )
-                    _logger.info(f"Audit session created for user {login}: {audit_session.id}")
-                except Exception as e:
-                    _logger.error(f"Failed to create audit session for user {login}: {e}")
-                    
-            return result
-            
-        except Exception as e:
-            _logger.error(f"Authentication failed for user {login}: {e}")
-            return False
-
-    @http.route('/web/session/destroy', type='json', auth="user", methods=['POST'])
-    def destroy(self):
-        """Override session destroy to close audit session"""
-        try:
-            # Find and close audit session
-            audit_session = request.env['audit.session'].search([
-                ('session_id', '=', request.session.sid),
-                ('user_id', '=', request.env.user.id),
-                ('status', '=', 'active')
-            ], limit=1)
-            
-            if audit_session:
-                audit_session.close_session()
-                _logger.info(f"Audit session closed for user {request.env.user.login}: {audit_session.id}")
-                
-        except Exception as e:
-            _logger.error(f"Failed to close audit session: {e}")
-            
-        # Call original destroy
-        return request.session.logout()
-
     @http.route('/audit/session/info', type='json', auth='user', methods=['POST'])
     def get_session_info(self):
         """Get current session information"""
@@ -115,6 +69,28 @@ class AuditController(http.Controller):
         }
         
         return request.render('peepl_audit_session.audit_dashboard', values)
+
+    @http.route('/audit/session/close', type='json', auth='user', methods=['POST'])
+    def close_session(self):
+        """Close current audit session"""
+        try:
+            # Find and close audit session
+            audit_session = request.env['audit.session'].search([
+                ('session_id', '=', request.session.sid),
+                ('user_id', '=', request.env.user.id),
+                ('status', '=', 'active')
+            ], limit=1)
+            
+            if audit_session:
+                audit_session.close_session()
+                _logger.info(f"Audit session closed for user {request.env.user.login}: {audit_session.id}")
+                return {'success': True, 'message': 'Session closed successfully'}
+            else:
+                return {'success': False, 'message': 'No active session found'}
+                
+        except Exception as e:
+            _logger.error(f"Failed to close audit session: {e}")
+            return {'success': False, 'error': str(e)}
 
     @http.route('/audit/api/stats', type='json', auth='user', methods=['POST'])
     def get_audit_stats(self):

@@ -21,6 +21,10 @@ class AuditConfig(models.Model):
     name = fields.Char('Configuration Name', required=True)
     active = fields.Boolean('Active', default=True)
     
+    # Performance control
+    enable_auditing = fields.Boolean('Enable Auditing', default=True, 
+                                   help="Master switch to completely disable auditing for performance")
+    
     # Operation toggles
     log_read = fields.Boolean('Log Read Operations', default=False)
     log_write = fields.Boolean('Log Write Operations', default=True)
@@ -52,16 +56,21 @@ class AuditConfig(models.Model):
             self.object_ids = [(5, 0, 0)]  # Clear specific models
 
     def get_active_config(self):
-        """Get the active audit configuration"""
+        """Get the active audit configuration with performance optimization"""
         try:
             # Check if we're in module installation/upgrade mode
             if self.env.context.get('module') or self.env.context.get('install_mode'):
                 return None
-            # Check if the table exists (safety check during installation)
-            self.env.cr.execute("SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_config' LIMIT 1")
-            if not self.env.cr.fetchone():
-                return None
-            return self.search([('active', '=', True)], limit=1)
+            # Performance: Cache the result in env context
+            if not hasattr(self.env, '_audit_config_cache'):
+                # Check if the table exists (safety check during installation)
+                self.env.cr.execute("SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_config' LIMIT 1")
+                if not self.env.cr.fetchone():
+                    self.env._audit_config_cache = None
+                    return None
+                config = self.search([('active', '=', True)], limit=1)
+                self.env._audit_config_cache = config
+            return self.env._audit_config_cache
         except Exception:
             # During installation, the table might not exist yet
             return None
