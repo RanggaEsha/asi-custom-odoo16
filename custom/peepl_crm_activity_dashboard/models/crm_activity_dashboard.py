@@ -86,10 +86,10 @@ class CrmActivityDashboard(models.Model):
         """Compute numeric color code based on state for calendar coloring"""
         color_map = {
             'overdue': 1,   # Red
-            'today': 2,     # Yellow  
-            'tomorrow': 3,  # Blue
-            'planned': 4,   # Gray
-            'done': 5,      # Green
+            'today': 3,     # Yellow  
+            'tomorrow': 4,  # Blue
+            'planned': 11,   # Gray
+            'done': 10,      # Green
         }
         for record in self:
             record.state_color_code = color_map.get(record.state, 0)
