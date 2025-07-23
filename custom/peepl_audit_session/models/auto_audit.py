@@ -250,7 +250,7 @@ class BaseModelOptimized(models.AbstractModel):
             return None
 
     def _create_audit_log(self, action_type, res_id, old_values=None, new_values=None, session_id=None):
-        """ROBUST: Create audit log with enhanced error handling"""
+        """ENHANCED: Create audit log with improved value formatting"""
         try:
             user_id = self.env.user.id
             _logger.info(f"AUDIT LOG ATTEMPT - {action_type} on {self._name}({res_id}) by user {user_id}")
@@ -286,7 +286,6 @@ class BaseModelOptimized(models.AbstractModel):
                 audit_vals['session_id'] = session_id
             else:
                 _logger.warning(f"AUDIT LOG - No session available for {action_type} on {self._name}({res_id})")
-                # Continue without session - better to have partial log than no log
             
             # Get record name for better identification
             try:
@@ -301,18 +300,22 @@ class BaseModelOptimized(models.AbstractModel):
             except Exception as e:
                 audit_vals['res_name'] = f"ID: {res_id} (error: {str(e)[:50]})"
             
-            # Add values if provided
+            # Enhanced value processing for better human-readable formatting
             if old_values:
                 try:
-                    audit_vals['old_values'] = json.dumps(old_values, default=str)
+                    processed_old = self._process_values_for_audit(old_values, res_id)
+                    audit_vals['old_values'] = json.dumps(processed_old, default=str)
                 except Exception as e:
-                    audit_vals['old_values'] = f"Error serializing: {str(e)}"
+                    _logger.warning(f"Error processing old values: {e}")
+                    audit_vals['old_values'] = json.dumps(old_values, default=str)
                     
             if new_values:
                 try:
-                    audit_vals['new_values'] = json.dumps(new_values, default=str)
+                    processed_new = self._process_values_for_audit(new_values, res_id)
+                    audit_vals['new_values'] = json.dumps(processed_new, default=str)
                 except Exception as e:
-                    audit_vals['new_values'] = f"Error serializing: {str(e)}"
+                    _logger.warning(f"Error processing new values: {e}")
+                    audit_vals['new_values'] = json.dumps(new_values, default=str)
                     
             # Create log entry
             log_entry = self.env['audit.log.entry'].sudo().create(audit_vals)
@@ -323,3 +326,92 @@ class BaseModelOptimized(models.AbstractModel):
         except Exception as e:
             _logger.error(f"AUDIT LOG CRITICAL FAILURE - {action_type} on {self._name}({res_id}): {e}")
             # Don't re-raise - audit failures shouldn't break business operations
+
+    def _process_values_for_audit(self, values, res_id=None):
+        """Process values to make them more suitable for human-readable formatting"""
+        if not values or not isinstance(values, dict):
+            return values
+        
+        processed = {}
+        
+        for field_name, value in values.items():
+            try:
+                # Skip if field doesn't exist in model
+                if field_name not in self._fields:
+                    processed[field_name] = value
+                    continue
+                
+                field = self._fields[field_name]
+                processed_value = self._process_single_field_value(field, value, res_id)
+                processed[field_name] = processed_value
+                
+            except Exception as e:
+                # Fallback to original value if processing fails
+                processed[field_name] = value
+                _logger.debug(f"Failed to process field {field_name}: {e}")
+        
+        return processed
+
+    def _process_single_field_value(self, field, value, res_id=None):
+        """Process a single field value for better audit formatting"""
+        try:
+            if field.type == 'many2one':
+                # Convert many2one ID to [id, name] format for better readability
+                if isinstance(value, int) and value:
+                    try:
+                        related_record = self.env[field.comodel_name].sudo().browse(value)
+                        if related_record.exists():
+                            return [value, related_record.display_name]
+                        else:
+                            return [value, f"(deleted {field.comodel_name})"]
+                    except:
+                        return value
+                return value
+            
+            elif field.type in ['one2many', 'many2many']:
+                # Keep list format but ensure it's a proper list
+                if isinstance(value, (list, tuple)):
+                    return list(value)
+                return value
+            
+            elif field.type == 'selection':
+                # Keep original value - will be formatted in display
+                return value
+            
+            elif field.type in ['date', 'datetime']:
+                # Ensure consistent date format
+                if value:
+                    try:
+                        if field.type == 'datetime':
+                            # Convert to string format that's easily parseable
+                            dt = fields.Datetime.to_datetime(value)
+                            return dt.strftime('%Y-%m-%d %H:%M:%S')
+                        elif field.type == 'date':
+                            dt = fields.Date.to_date(value)
+                            return dt.strftime('%Y-%m-%d')
+                    except:
+                        pass
+                return value
+            
+            elif field.type in ['float', 'monetary']:
+                # Ensure numeric values are properly formatted
+                if value is not None:
+                    try:
+                        return float(value)
+                    except:
+                        pass
+                return value
+            
+            elif field.type == 'text':
+                # Truncate very long text for storage efficiency
+                if isinstance(value, str) and len(value) > 1000:
+                    return value[:1000] + '... (truncated)'
+                return value
+            
+            else:
+                # Default: return as-is
+                return value
+                
+        except Exception as e:
+            # Fallback to original value
+            return value

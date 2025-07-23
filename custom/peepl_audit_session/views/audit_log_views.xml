@@ -23,6 +23,7 @@
                     <field name="res_id"/>
                     <field name="session_id"/>
                     <field name="method"/>
+                    <field name="changes_summary" string="Summary" optional="show"/>
                 </tree>
             </field>
         </record>
@@ -61,18 +62,47 @@
                         </group>
                         
                         <notebook>
-                            <page string="Changes" attrs="{'invisible': [('action_type', '=', 'read')]}">
-                                <group>
-                                    <group string="Old Values" attrs="{'invisible': [('old_values', '=', False)]}">
+                            <page string="Changes Summary" attrs="{'invisible': [('action_type', '=', 'read')]}">
+                                <div attrs="{'invisible': [('changes_summary', '=', False)]}">
+                                    <field name="changes_summary" widget="text" readonly="1" nolabel="1"/>
+                                </div>
+                                <div class="mt16" attrs="{'invisible': [('action_type', 'in', ['create', 'unlink'])]}">
+                                    <h4>What Changed</h4>
+                                    <div class="row">
+                                        <div class="col-md-6" attrs="{'invisible': [('old_values_readable', '=', False)]}">
+                                            <h5>Before (Old Values)</h5>
+                                            <field name="old_values_readable" widget="text" nolabel="1" readonly="1"/>
+                                        </div>
+                                        <div class="col-md-6" attrs="{'invisible': [('new_values_readable', '=', False)]}">
+                                            <h5>After (New Values)</h5>
+                                            <field name="new_values_readable" widget="text" nolabel="1" readonly="1"/>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt16" attrs="{'invisible': [('action_type', '!=', 'create')]}">
+                                    <h4>Values Set</h4>
+                                    <field name="new_values_readable" widget="text" nolabel="1" readonly="1"/>
+                                </div>
+                            </page>
+                            <page string="Technical Details" attrs="{'invisible': [('action_type', '=', 'read')]}">
+                                <div class="row">
+                                    <div class="col-md-6" attrs="{'invisible': [('old_values', '=', False)]}">
+                                        <h4>Old Values</h4>
                                         <field name="old_values" widget="text" nolabel="1"/>
-                                    </group>
-                                    <group string="New Values" attrs="{'invisible': [('new_values', '=', False)]}">
+                                    </div>
+                                    <div class="col-md-6" attrs="{'invisible': [('new_values', '=', False)]}">
+                                        <h4>New Values</h4>
                                         <field name="new_values" widget="text" nolabel="1"/>
-                                    </group>
-                                </group>
-                                <group string="Changed Fields" attrs="{'invisible': [('changed_fields', '=', False)]}">
+                                    </div>
+                                </div>
+                                <div class="mt16" attrs="{'invisible': [('changed_fields', '=', False)]}">
+                                    <h4>Changed Fields</h4>
                                     <field name="changed_fields" widget="text" nolabel="1"/>
-                                </group>
+                                </div>
+                                <div class="alert alert-info" role="alert">
+                                    <strong>Note:</strong> This section shows the raw technical data. 
+                                    For a user-friendly view, check the "Changes Summary" tab.
+                                </div>
                             </page>
                             <page string="Context Info" attrs="{'invisible': [('context_info', '=', False)]}">
                                 <field name="context_info" widget="text" nolabel="1"/>

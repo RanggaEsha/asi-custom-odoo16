@@ -571,13 +571,296 @@ class AuditLogEntry(models.Model):
             _logger.debug(f"Failed to log action: {e}")
             return False
 
-    def get_old_values_dict(self):
-        """Get old values as dictionary"""
-        return json.loads(self.old_values) if self.old_values else {}
-
-    def get_new_values_dict(self):
-        """Get new values as dictionary"""
-        return json.loads(self.new_values) if self.new_values else {}
+    old_values_readable = fields.Text('Old Values (Readable)', compute='_compute_readable_values', store=True)
+    new_values_readable = fields.Text('New Values (Readable)', compute='_compute_readable_values', store=True)
+    changes_summary = fields.Text('Changes Summary', compute='_compute_readable_values', store=True)
+    
+    @api.depends('old_values', 'new_values', 'model_name', 'action_type')
+    def _compute_readable_values(self):
+        """Compute human-readable versions of the values"""
+        for record in self:
+            try:
+                # Parse the JSON values
+                old_dict = json.loads(record.old_values) if record.old_values else {}
+                new_dict = json.loads(record.new_values) if record.new_values else {}
+                
+                # Generate readable versions
+                record.old_values_readable = record._format_values_readable(old_dict, 'old')
+                record.new_values_readable = record._format_values_readable(new_dict, 'new')
+                record.changes_summary = record._generate_changes_summary(old_dict, new_dict)
+                
+            except Exception as e:
+                # Fallback to original values if parsing fails
+                record.old_values_readable = record.old_values or ''
+                record.new_values_readable = record.new_values or ''
+                record.changes_summary = f"Error formatting changes: {str(e)}"
+    
+    def _format_values_readable(self, values_dict, value_type='new'):
+        """Convert a values dictionary to human-readable format"""
+        if not values_dict:
+            return ''
+        
+        try:
+            # Get the model for field information
+            target_model = self.env[self.model_name] if self.model_name else None
+            if not target_model:
+                return str(values_dict)
+            
+            readable_parts = []
+            
+            for field_name, value in values_dict.items():
+                try:
+                    readable_part = self._format_single_field(target_model, field_name, value, value_type)
+                    if readable_part:
+                        readable_parts.append(readable_part)
+                except Exception as e:
+                    # Fallback for problematic fields
+                    readable_parts.append(f"{field_name}: {value}")
+            
+            return '\n'.join(readable_parts) if readable_parts else 'No changes recorded'
+            
+        except Exception as e:
+            return f"Error formatting values: {str(e)}"
+    
+    def _format_single_field(self, target_model, field_name, value, value_type='new'):
+        """Format a single field value to human-readable format"""
+        try:
+            # Skip if field doesn't exist in model
+            if field_name not in target_model._fields:
+                return f"{field_name.title()}: {value}"
+            
+            field = target_model._fields[field_name]
+            field_label = field.string or field_name.replace('_', ' ').title()
+            
+            # Handle different field types
+            if field.type == 'many2one':
+                return self._format_many2one_field(field_label, value, field.comodel_name)
+            
+            elif field.type == 'one2many' or field.type == 'many2many':
+                return self._format_relation_field(field_label, value, field.comodel_name, field.type)
+            
+            elif field.type == 'selection':
+                return self._format_selection_field(field_label, value, field.selection)
+            
+            elif field.type == 'boolean':
+                return self._format_boolean_field(field_label, value)
+            
+            elif field.type in ['date', 'datetime']:
+                return self._format_date_field(field_label, value, field.type)
+            
+            elif field.type in ['float', 'monetary']:
+                return self._format_numeric_field(field_label, value, field.type)
+            
+            elif field.type == 'text':
+                return self._format_text_field(field_label, value)
+            
+            else:
+                # Default formatting for other field types
+                return f"{field_label}: {value}"
+                
+        except Exception as e:
+            return f"{field_name}: {value} (formatting error: {str(e)})"
+    
+    def _format_many2one_field(self, field_label, value, comodel_name):
+        """Format many2one field value"""
+        if not value:
+            return f"{field_label}: (empty)"
+        
+        try:
+            if isinstance(value, (list, tuple)) and len(value) >= 2:
+                # Value is [id, name] format
+                return f"{field_label}: {value[1]} (ID: {value[0]})"
+            elif isinstance(value, int):
+                # Value is just ID, try to get the name
+                try:
+                    record = self.env[comodel_name].sudo().browse(value)
+                    if record.exists():
+                        return f"{field_label}: {record.display_name} (ID: {value})"
+                    else:
+                        return f"{field_label}: (deleted record, ID: {value})"
+                except:
+                    return f"{field_label}: ID {value}"
+            else:
+                return f"{field_label}: {value}"
+        except:
+            return f"{field_label}: {value}"
+    
+    def _format_relation_field(self, field_label, value, comodel_name, field_type):
+        """Format one2many/many2many field values"""
+        if not value:
+            return f"{field_label}: (empty)"
+        
+        try:
+            if isinstance(value, list):
+                if len(value) == 0:
+                    return f"{field_label}: (empty)"
+                elif len(value) <= 3:
+                    # Show individual records for small lists
+                    names = []
+                    for item_id in value:
+                        try:
+                            record = self.env[comodel_name].sudo().browse(item_id)
+                            if record.exists():
+                                names.append(record.display_name)
+                            else:
+                                names.append(f"ID: {item_id}")
+                        except:
+                            names.append(f"ID: {item_id}")
+                    return f"{field_label}: {', '.join(names)}"
+                else:
+                    # Show count for large lists
+                    return f"{field_label}: {len(value)} records"
+            else:
+                return f"{field_label}: {value}"
+        except:
+            return f"{field_label}: {value}"
+    
+    def _format_selection_field(self, field_label, value, selection):
+        """Format selection field value"""
+        if not value:
+            return f"{field_label}: (not set)"
+        
+        try:
+            # Find the human-readable label for the selection value
+            if selection:
+                if callable(selection):
+                    # Dynamic selection - can't easily resolve
+                    return f"{field_label}: {value}"
+                else:
+                    # Static selection
+                    for sel_value, sel_label in selection:
+                        if sel_value == value:
+                            return f"{field_label}: {sel_label}"
+            
+            return f"{field_label}: {value}"
+        except:
+            return f"{field_label}: {value}"
+    
+    def _format_boolean_field(self, field_label, value):
+        """Format boolean field value"""
+        if value is True:
+            return f"{field_label}: Yes"
+        elif value is False:
+            return f"{field_label}: No"
+        else:
+            return f"{field_label}: {value}"
+    
+    def _format_date_field(self, field_label, value, field_type):
+        """Format date/datetime field value"""
+        if not value:
+            return f"{field_label}: (not set)"
+        
+        try:
+            if field_type == 'datetime':
+                # Parse datetime and format nicely
+                if isinstance(value, str):
+                    dt = fields.Datetime.from_string(value)
+                    return f"{field_label}: {dt.strftime('%Y-%m-%d %H:%M:%S')}"
+            elif field_type == 'date':
+                # Parse date and format nicely
+                if isinstance(value, str):
+                    dt = fields.Date.from_string(value)
+                    return f"{field_label}: {dt.strftime('%Y-%m-%d')}"
+            
+            return f"{field_label}: {value}"
+        except:
+            return f"{field_label}: {value}"
+    
+    def _format_numeric_field(self, field_label, value, field_type):
+        """Format numeric field value"""
+        if value is None or value == '':
+            return f"{field_label}: (not set)"
+        
+        try:
+            if field_type == 'monetary':
+                # Format as currency (basic formatting)
+                return f"{field_label}: {float(value):,.2f}"
+            elif field_type == 'float':
+                # Format as float
+                return f"{field_label}: {float(value):,.2f}"
+            else:
+                return f"{field_label}: {value}"
+        except:
+            return f"{field_label}: {value}"
+    
+    def _format_text_field(self, field_label, value):
+        """Format text field value"""
+        if not value:
+            return f"{field_label}: (empty)"
+        
+        # Truncate long text values
+        if len(str(value)) > 100:
+            return f"{field_label}: {str(value)[:100]}... (truncated)"
+        else:
+            return f"{field_label}: {value}"
+    
+    def _generate_changes_summary(self, old_dict, new_dict):
+        """Generate a summary of what changed"""
+        if not old_dict and not new_dict:
+            return "No changes recorded"
+        
+        if self.action_type == 'create':
+            return self._generate_create_summary(new_dict)
+        elif self.action_type == 'write':
+            return self._generate_update_summary(old_dict, new_dict)
+        elif self.action_type == 'unlink':
+            return f"Record was deleted"
+        elif self.action_type == 'read':
+            return f"Record was accessed"
+        else:
+            return f"Action: {self.action_type}"
+    
+    def _generate_create_summary(self, new_dict):
+        """Generate summary for create action"""
+        if not new_dict:
+            return "New record was created"
+        
+        # Try to identify key fields that were set
+        key_fields = ['name', 'title', 'subject', 'description', 'email', 'phone']
+        important_values = []
+        
+        for field in key_fields:
+            if field in new_dict and new_dict[field]:
+                important_values.append(f"{field.title()}: {new_dict[field]}")
+        
+        if important_values:
+            return f"New record created with {', '.join(important_values[:2])}"
+        else:
+            return f"New record created with {len(new_dict)} fields set"
+    
+    def _generate_update_summary(self, old_dict, new_dict):
+        """Generate summary for update action"""
+        if not old_dict or not new_dict:
+            return "Record was updated"
+        
+        changes = []
+        for field_name in new_dict.keys():
+            old_value = old_dict.get(field_name)
+            new_value = new_dict.get(field_name)
+            
+            if old_value != new_value:
+                field_label = field_name.replace('_', ' ').title()
+                
+                # Special handling for some field types
+                if field_name.endswith('_id') and isinstance(old_value, str) and isinstance(new_value, int):
+                    # Many2one field change
+                    changes.append(f"{field_label} changed")
+                elif isinstance(old_value, bool) and isinstance(new_value, bool):
+                    # Boolean field change
+                    changes.append(f"{field_label} {'enabled' if new_value else 'disabled'}")
+                else:
+                    # General change
+                    changes.append(f"{field_label} modified")
+        
+        if changes:
+            if len(changes) == 1:
+                return f"{changes[0]}"
+            elif len(changes) <= 3:
+                return f"{', '.join(changes)}"
+            else:
+                return f"{len(changes)} fields were modified: {', '.join(changes[:2])}, and {len(changes)-2} others"
+        else:
+            return "Record was updated (no field changes detected)"
 
     def get_changed_fields_list(self):
         """Get changed fields as list"""
