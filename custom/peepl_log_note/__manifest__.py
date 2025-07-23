@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 {
-    'name': "Partner Log Note Dashboard",
+    'name': "Peepl Log Note Dashboard",
 
     'summary': """
         Searchable dashboard for managing partner log notes with real-time updates and advanced filtering""",

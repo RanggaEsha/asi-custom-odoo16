@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 {
-    'name': "Advanced User Audit Log Tracking",
+    'name': "Peepl User Audit Log Tracking",
 
     'summary': """
         Comprehensive User Activity and Session Audit Tracking for Odoo 16 Enterprise

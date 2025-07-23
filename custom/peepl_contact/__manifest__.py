@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 {
-    'name': "Partner Contact Documents",
+    'name': "Peepl Contact",
 
     'summary': """
         Extends partner contact form with document management section""",
