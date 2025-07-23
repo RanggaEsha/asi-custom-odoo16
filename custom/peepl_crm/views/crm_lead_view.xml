@@ -142,15 +142,33 @@
 
                 <!-- Add participant data field using xpath -->
                 <xpath expr="//field[@name='tag_ids']" position="after">
-                    <group>
-                        <field name="has_participant_data" string="Has Participant Data"/>
-                    </group>
-                    <group string="Assessment Information" attrs="{'invisible': [('has_participant_data', '=', False)]}">
-                        <field name="test_start_date" string="Start Date"/>
-                        <field name="test_finish_date" string="End Date"/>
-                        <field name="type_of_assessment" string="Type of Assessment"/>
-                        <field name="assessment_language" string="Assessment Language"/>
-                        <field name="purpose" string="Purpose" placeholder="What is the purpose of this assessment?"/>
+                    <field name="has_participant_data" string="Has Participant Data"/>
+                </xpath>
+
+                <!-- OPTION 3: Add to existing Extra Info tab -->
+                <xpath expr="//sheet/group" position="after">
+                    <group string="Assessment Information" attrs="{'invisible': [('has_participant_data', '=', False)]}" col="4">
+                        <label for="test_start_date" string="Assessment Period" colspan="1"/>
+                        <div colspan="3">
+                            <field name="test_start_date" class="oe_inline" style="width: 45%;"/>
+                            <span style="margin: 0 8px;">to</span>
+                            <field name="test_finish_date" class="oe_inline" style="width: 45%;"/>
+                        </div>
+                        
+                        <label for="type_of_assessment" string="Type of Assessment" colspan="1"/>
+                        <div colspan="3">
+                            <field name="type_of_assessment" style="width: 400px; min-width: 400px;"/>
+                        </div>
+                        
+                        <label for="assessment_language" string="Assessment Language" colspan="1"/>
+                        <div colspan="3">
+                            <field name="assessment_language" style="width: 400px; min-width: 400px;"/>
+                        </div>
+                        
+                        <label for="purpose" string="Purpose" colspan="1"/>
+                        <div colspan="3">
+                            <field name="purpose" placeholder="What is the purpose of this assessment?" style="width: 500px; min-width: 500px;"/>
+                        </div>
                     </group>
                 </xpath>
                  

@@ -1,7 +1,7 @@
 <odoo>
   <data>
     
-    <!-- Inherit the partner form view to add Documents section -->
+    <!-- Inherit the partner form view to add Documents and Reminders section -->
     <record id="view_partner_form_documents" model="ir.ui.view">
       <field name="name">res.partner.form.documents</field>
       <field name="model">res.partner</field>
@@ -37,8 +37,106 @@
                   <field name="kontrak_kerja_filename" invisible="1"/>
                 </div>
                 
+                <!-- Description Field -->
+                <label for="document_description" string="Description" colspan="1"/>
+                <div colspan="3">
+                  <field name="document_description" class="oe_inline" placeholder="Describe the uploaded documents..." style="width: 400px;"/>
+                </div>
+                
               </group>
 
+            </group>
+          </page>
+          
+          <!-- Reminder Settings Page -->
+          <page name="reminders" string="Reminders">
+            <div class="alert alert-info" role="alert" style="margin-bottom: 10px;">
+              <strong>📅 Contract Reminder System</strong><br/>
+              Set up automatic reminders for contract agreement dates via email and push notifications.
+            </div>
+            
+            <group col="1">
+              
+              <!-- Basic Reminder Settings -->
+              <group string="Reminder Configuration" col="4">
+                
+                <!-- Hidden fields for proper functioning -->
+                <field name="reminder_date_manual" invisible="1"/>
+                
+                <!-- Agreement Date -->
+                <label for="agreement_date" string="Agreement Date" colspan="1"/>
+                <div colspan="3">
+                  <field name="agreement_date" class="oe_inline" style="width: 200px;"/>
+                </div>
+                
+                <!-- Reminder Active -->
+                <label for="reminder_active" string="Enable Reminders" colspan="1"/>
+                <div colspan="3">
+                  <field name="reminder_active" class="oe_inline"/>
+                </div>
+                
+                <!-- Select Date Type -->
+                <label for="select_date" string="Set Exact Reminder Date" colspan="1"/>
+                <div colspan="3">
+                  <field name="select_date" class="oe_inline"/>
+                  <span class="text-muted" style="margin-left: 10px;">
+                    Check to set exact date, uncheck to calculate from agreement date
+                  </span>
+                </div>
+                
+                <!-- Calculated Reminder Fields (shown when select_date is False) -->
+                <label for="reminder_number" string="Remind Before" colspan="1" attrs="{'invisible': [('select_date', '=', True)]}"/>
+                <div colspan="3" attrs="{'invisible': [('select_date', '=', True)]}">
+                  <field name="reminder_number" class="oe_inline" style="width: 80px;" placeholder="30"/>
+                  <field name="reminder_period" class="oe_inline" style="width: 120px; margin-left: 5px;"/>
+                  <span class="text-muted" style="margin-left: 10px;">before agreement date</span>
+                </div>
+                
+                <!-- Exact Reminder Date (shown when select_date is True) -->
+                <label for="reminder_date_manual" string="Reminder Date" colspan="1" attrs="{'invisible': [('select_date', '=', False)]}"/>
+                <div colspan="3" attrs="{'invisible': [('select_date', '=', False)]}">
+                  <field name="reminder_date_manual" class="oe_inline" style="width: 200px;"/>
+                </div>
+                
+                <!-- Calculated Reminder Date Display (read-only, shown when select_date is False) -->
+                <label for="reminder_date" string="Calculated Reminder Date" colspan="1" attrs="{'invisible': [('select_date', '=', True)]}"/>
+                <div colspan="3" attrs="{'invisible': [('select_date', '=', True)]}">
+                  <field name="reminder_date" class="oe_inline" readonly="1" style="width: 200px;"/>
+                </div>
+                
+                <!-- Reminder Status -->
+                <label for="reminder_sent" string="Reminder Status" colspan="1"/>
+                <div colspan="3">
+                  <field name="reminder_sent" class="oe_inline"/>
+                  <span class="text-muted" style="margin-left: 10px;">
+                    <span attrs="{'invisible': [('reminder_sent', '=', False)]}">✅ Sent</span>
+                    <span attrs="{'invisible': [('reminder_sent', '=', True)]}">⏳ Pending</span>
+                  </span>
+                </div>
+                
+              </group>
+              
+              <!-- Email Template Section -->
+              <group string="Email Template" col="1">
+                <div class="alert alert-warning" role="alert" style="margin-bottom: 10px;">
+                  <strong>📧 Email Template Variables:</strong><br/>
+                  Use these variables in your template: <code>{{partner_name}}</code>, <code>{{agreement_date}}</code>, <code>{{reminder_date}}</code>, <code>{{company_name}}</code>
+                </div>
+                
+                <field name="email_template" widget="html" style="min-height: 200px;" 
+                       placeholder="Dear {{partner_name}},&#10;&#10;This is a reminder that your agreement date {{agreement_date}} is approaching.&#10;&#10;Best regards,&#10;{{company_name}}"/>
+              </group>
+              
+              <!-- Action Buttons -->
+              <group string="Actions" col="4">
+                <div colspan="4">
+                  <button name="send_reminder_notification" string="🔔 Send Reminder Now" type="object" class="btn-primary" 
+                          attrs="{'invisible': ['|', ('agreement_date', '=', False), ('reminder_active', '=', False)]}"/>
+                  <button name="reset_reminder" string="🔄 Reset Reminder" type="object" class="btn-secondary" 
+                          attrs="{'invisible': [('reminder_sent', '=', False)]}" style="margin-left: 10px;"/>
+                </div>
+              </group>
+              
             </group>
           </page>
         </page>
