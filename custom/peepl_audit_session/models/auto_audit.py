@@ -111,6 +111,23 @@ class BaseModelOptimized(models.AbstractModel):
                 _logger.debug(f"Audit logging failed for create {self._name}: {e}")
                     
         return records
+    
+    def read(self, fields=None, load='_classic_read'):
+        """Override read with performance optimization"""
+        # Execute the read first
+        result = super().read(fields, load)
+        
+        # Only audit if read logging is enabled and conditions are met
+        if self._should_audit_operation('read'):
+            try:
+                session_id = self._get_current_session_id()
+                # Log read operation for each record
+                for record in self:
+                    self._create_audit_log('read', record.id, session_id=session_id)
+            except Exception as e:
+                _logger.debug(f"Audit logging failed for read {self._name}: {e}")
+                    
+        return result
 
     def write(self, vals):
         """Override write with performance optimization"""
@@ -150,28 +167,63 @@ class BaseModelOptimized(models.AbstractModel):
         return result
 
     def unlink(self):
-        """Override unlink with performance optimization"""
+        """Override unlink with enhanced data capture for better audit trails"""
         records_info = []
         if self._should_audit_operation('unlink'):
             try:
                 session_id = self._get_current_session_id()
                 for record in self:
+                    # ENHANCED: Capture all important field data before deletion
+                    old_values = {}
+                    try:
+                        # Get all readable fields from the record
+                        for field_name, field in record._fields.items():
+                            # Skip fields that can't be read or aren't useful for audit
+                            if (field.store and 
+                                not field.compute and 
+                                field_name not in ['__last_update', 'create_uid', 'create_date', 'write_uid', 'write_date']):
+                                try:
+                                    value = getattr(record, field_name, None)
+                                    if value is not None:
+                                        old_values[field_name] = value
+                                except Exception:
+                                    # Skip fields that can't be read
+                                    continue
+                    except Exception as e:
+                        _logger.debug(f"Failed to capture complete record data: {e}")
+                        # Fallback: capture basic fields
+                        try:
+                            old_values = {
+                                'id': record.id,
+                                'display_name': getattr(record, 'display_name', f"ID: {record.id}")
+                            }
+                            # Try to get name field if it exists
+                            if hasattr(record, 'name'):
+                                old_values['name'] = getattr(record, 'name', '')
+                        except Exception:
+                            old_values = {'id': record.id}
+                    
                     records_info.append({
                         'id': record.id,
                         'name': getattr(record, 'display_name', f"ID: {record.id}"),
-                        'session_id': session_id
+                        'session_id': session_id,
+                        'old_values': old_values
                     })
             except Exception as e:
                 _logger.debug(f"Audit preparation failed for unlink {self._name}: {e}")
         
         result = super().unlink()
         
-        # Log after successful unlink
+        # Log after successful unlink with captured data
         if records_info:
             try:
                 for record_info in records_info:
-                    self._create_audit_log('unlink', record_info['id'], 
-                                         session_id=record_info['session_id'])
+                    self._create_audit_log(
+                        'unlink', 
+                        record_info['id'], 
+                        old_values=record_info['old_values'],  # Pass the captured data
+                        session_id=record_info['session_id']
+                    )
             except Exception as e:
                 _logger.debug(f"Audit logging failed for unlink {self._name}: {e}")
                     

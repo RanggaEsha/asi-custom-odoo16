@@ -176,7 +176,7 @@
             <field name="name">Audit Logs</field>
             <field name="res_model">audit.log.entry</field>
             <field name="view_mode">tree,form,pivot,graph</field>
-            <field name="context">{'search_default_today': 1, 'search_default_group_by_action_type': 1}</field>
+            <field name="context">{'search_default_today': 1, 'search_default_group_by_session': 1}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
                     No audit logs found!
@@ -194,7 +194,7 @@
             <field name="res_model">audit.log.entry</field>
             <field name="view_mode">tree,form</field>
             <field name="domain">[('user_id', '=', uid)]</field>
-            <field name="context">{'search_default_today': 1, 'search_default_group_by_action_type': 1}</field>
+            <field name="context">{'search_default_today': 1, 'search_default_group_by_session': 1}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
                     No activity logs found!

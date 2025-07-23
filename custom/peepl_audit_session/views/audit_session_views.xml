@@ -89,9 +89,16 @@
                         <notebook>
                             <page string="Activity Logs">
                                 <field name="log_entry_ids">
-                                    <tree>
+                                    <tree decoration-success="action_type=='create'" 
+                                        decoration-info="action_type=='read'"
+                                        decoration-warning="action_type=='write'" 
+                                        decoration-danger="action_type=='unlink'">
                                         <field name="action_date"/>
-                                        <field name="action_type" widget="badge"/>
+                                        <field name="action_type" widget="badge"
+                                            decoration-success="action_type=='create'"
+                                            decoration-info="action_type=='read'"
+                                            decoration-warning="action_type=='write'"
+                                            decoration-danger="action_type=='unlink'"/>
                                         <field name="model_name"/>
                                         <field name="res_name"/>
                                         <field name="res_id"/>

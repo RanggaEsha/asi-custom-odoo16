@@ -577,116 +577,217 @@ class AuditLogEntry(models.Model):
     
     @api.depends('old_values', 'new_values', 'model_name', 'action_type')
     def _compute_readable_values(self):
-        """Compute human-readable versions of the values"""
+        """Compute human-readable versions of the values with robust error handling"""
         for record in self:
+            # Initialize with safe defaults
+            record.old_values_readable = ''
+            record.new_values_readable = ''
+            record.changes_summary = ''
+            
             try:
-                # Parse the JSON values
-                old_dict = json.loads(record.old_values) if record.old_values else {}
-                new_dict = json.loads(record.new_values) if record.new_values else {}
+                # Parse the JSON values safely
+                old_dict = {}
+                new_dict = {}
                 
-                # Generate readable versions
-                record.old_values_readable = record._format_values_readable(old_dict, 'old')
-                record.new_values_readable = record._format_values_readable(new_dict, 'new')
-                record.changes_summary = record._generate_changes_summary(old_dict, new_dict)
+                try:
+                    if record.old_values:
+                        old_dict = json.loads(record.old_values)
+                except Exception as e:
+                    _logger.debug(f"Failed to parse old_values: {e}")
+                    old_dict = {}
                 
+                try:
+                    if record.new_values:
+                        new_dict = json.loads(record.new_values)
+                except Exception as e:
+                    _logger.debug(f"Failed to parse new_values: {e}")
+                    new_dict = {}
+                
+                # Generate readable versions with fallback
+                try:
+                    record.old_values_readable = record._format_values_readable_safe(old_dict, 'old')
+                except Exception as e:
+                    _logger.debug(f"Failed to format old values: {e}")
+                    record.old_values_readable = record._format_values_basic(old_dict) if old_dict else ''
+                
+                try:
+                    record.new_values_readable = record._format_values_readable_safe(new_dict, 'new')
+                except Exception as e:
+                    _logger.debug(f"Failed to format new values: {e}")
+                    record.new_values_readable = record._format_values_basic(new_dict) if new_dict else ''
+                
+                try:
+                    record.changes_summary = record._generate_changes_summary_safe(old_dict, new_dict)
+                except Exception as e:
+                    _logger.debug(f"Failed to generate summary: {e}")
+                    record.changes_summary = record._generate_basic_summary(old_dict, new_dict)
+                    
             except Exception as e:
-                # Fallback to original values if parsing fails
+                # Ultimate fallback - this should never happen now
+                _logger.warning(f"Critical error in _compute_readable_values: {e}")
                 record.old_values_readable = record.old_values or ''
                 record.new_values_readable = record.new_values or ''
-                record.changes_summary = f"Error formatting changes: {str(e)}"
-    
-    def _format_values_readable(self, values_dict, value_type='new'):
-        """Convert a values dictionary to human-readable format"""
+                record.changes_summary = f"Unable to format audit data"
+
+    def _format_values_readable_safe(self, values_dict, value_type='new'):
+        """Safely convert a values dictionary to human-readable format"""
         if not values_dict:
             return ''
         
+        # First, check if we can safely access the model
+        target_model = None
+        can_access_model = False
+        
         try:
-            # Get the model for field information
-            target_model = self.env[self.model_name] if self.model_name else None
-            if not target_model:
-                return str(values_dict)
-            
+            if self.model_name:
+                # Check if model exists in registry first
+                if self.model_name in self.env.registry:
+                    # Try to access the model
+                    target_model = self.env[self.model_name]
+                    can_access_model = True
+                else:
+                    _logger.debug(f"Model {self.model_name} not found in registry")
+        except Exception as e:
+            _logger.debug(f"Cannot access model {self.model_name}: {e}")
+            can_access_model = False
+        
+        # If we can't access the model, use basic formatting
+        if not can_access_model or not target_model:
+            return self._format_values_basic(values_dict)
+        
+        # Try advanced formatting with the model
+        try:
             readable_parts = []
             
             for field_name, value in values_dict.items():
                 try:
-                    readable_part = self._format_single_field(target_model, field_name, value, value_type)
+                    readable_part = self._format_single_field_safe(target_model, field_name, value, value_type)
                     if readable_part:
                         readable_parts.append(readable_part)
                 except Exception as e:
-                    # Fallback for problematic fields
-                    readable_parts.append(f"{field_name}: {value}")
+                    # Fallback to basic formatting for this field
+                    _logger.debug(f"Error formatting field {field_name}: {e}")
+                    readable_parts.append(self._format_field_basic(field_name, value))
             
             return '\n'.join(readable_parts) if readable_parts else 'No changes recorded'
             
         except Exception as e:
-            return f"Error formatting values: {str(e)}"
-    
-    def _format_single_field(self, target_model, field_name, value, value_type='new'):
-        """Format a single field value to human-readable format"""
+            _logger.debug(f"Advanced formatting failed, using basic: {e}")
+            return self._format_values_basic(values_dict)
+
+    def _format_values_basic(self, values_dict):
+        """Basic formatting when model access fails or isn't available"""
+        if not values_dict:
+            return ''
+        
+        readable_parts = []
+        for field_name, value in values_dict.items():
+            try:
+                readable_parts.append(self._format_field_basic(field_name, value))
+            except Exception as e:
+                # Ultra-safe fallback
+                readable_parts.append(f"{field_name}: {str(value)}")
+        
+        return '\n'.join(readable_parts)
+
+    def _format_field_basic(self, field_name, value):
+        """Ultra-safe basic field formatting without any model dependencies"""
         try:
-            # Skip if field doesn't exist in model
-            if field_name not in target_model._fields:
-                return f"{field_name.title()}: {value}"
+            # Clean up field name
+            field_label = field_name.replace('_', ' ').title()
             
-            field = target_model._fields[field_name]
-            field_label = field.string or field_name.replace('_', ' ').title()
+            # Handle None/empty values
+            if value is None:
+                return f"{field_label}: (not set)"
+            elif value == '':
+                return f"{field_label}: (empty)"
             
-            # Handle different field types
-            if field.type == 'many2one':
-                return self._format_many2one_field(field_label, value, field.comodel_name)
+            # Handle different value types
+            if isinstance(value, bool):
+                return f"{field_label}: {'Yes' if value else 'No'}"
             
-            elif field.type == 'one2many' or field.type == 'many2many':
-                return self._format_relation_field(field_label, value, field.comodel_name, field.type)
+            elif isinstance(value, (list, tuple)):
+                if len(value) == 0:
+                    return f"{field_label}: (empty)"
+                elif len(value) == 2 and field_name.endswith('_id'):
+                    # Likely [id, name] format for many2one
+                    return f"{field_label}: {value[1]} (ID: {value[0]})"
+                elif len(value) <= 5:
+                    return f"{field_label}: {', '.join(map(str, value))}"
+                else:
+                    return f"{field_label}: {len(value)} items"
             
-            elif field.type == 'selection':
-                return self._format_selection_field(field_label, value, field.selection)
+            elif isinstance(value, (int, float)):
+                if field_name.endswith('_id'):
+                    return f"{field_label}: ID {value}"
+                elif isinstance(value, float):
+                    return f"{field_label}: {value:,.2f}"
+                else:
+                    return f"{field_label}: {value:,}"
             
-            elif field.type == 'boolean':
-                return self._format_boolean_field(field_label, value)
-            
-            elif field.type in ['date', 'datetime']:
-                return self._format_date_field(field_label, value, field.type)
-            
-            elif field.type in ['float', 'monetary']:
-                return self._format_numeric_field(field_label, value, field.type)
-            
-            elif field.type == 'text':
-                return self._format_text_field(field_label, value)
+            elif isinstance(value, str):
+                if len(value) > 100:
+                    return f"{field_label}: {value[:100]}... (truncated)"
+                else:
+                    return f"{field_label}: {value}"
             
             else:
-                # Default formatting for other field types
+                # Fallback for any other type
+                return f"{field_label}: {str(value)}"
+                
+        except Exception as e:
+            # Ultimate fallback
+            return f"{field_name}: {str(value)}"
+
+    def _format_single_field_safe(self, target_model, field_name, value, value_type='new'):
+        """Safely format a single field with model information"""
+        try:
+            # Check if field exists in model
+            if not hasattr(target_model, '_fields') or field_name not in target_model._fields:
+                return self._format_field_basic(field_name, value)
+            
+            field = target_model._fields[field_name]
+            field_label = getattr(field, 'string', None) or field_name.replace('_', ' ').title()
+            
+            # Handle different field types safely
+            if field.type == 'many2one':
+                return self._format_many2one_field_ultra_safe(field_label, value, getattr(field, 'comodel_name', None))
+            elif field.type in ['one2many', 'many2many']:
+                return self._format_relation_field_ultra_safe(field_label, value, getattr(field, 'comodel_name', None))
+            elif field.type == 'selection':
+                return self._format_selection_field_ultra_safe(field_label, value, getattr(field, 'selection', None))
+            elif field.type == 'boolean':
+                return f"{field_label}: {'Yes' if value else 'No'}"
+            elif field.type in ['date', 'datetime']:
+                return self._format_date_field_ultra_safe(field_label, value, field.type)
+            elif field.type in ['float', 'monetary']:
+                return self._format_numeric_field_ultra_safe(field_label, value, field.type)
+            elif field.type == 'text':
+                return self._format_text_field_safe(field_label, value)
+            else:
                 return f"{field_label}: {value}"
                 
         except Exception as e:
-            return f"{field_name}: {value} (formatting error: {str(e)})"
-    
-    def _format_many2one_field(self, field_label, value, comodel_name):
-        """Format many2one field value"""
+            # Fallback to basic formatting
+            return self._format_field_basic(field_name, value)
+
+    def _format_many2one_field_ultra_safe(self, field_label, value, comodel_name):
+        """Ultra-safe many2one formatting"""
         if not value:
             return f"{field_label}: (empty)"
         
         try:
             if isinstance(value, (list, tuple)) and len(value) >= 2:
-                # Value is [id, name] format
                 return f"{field_label}: {value[1]} (ID: {value[0]})"
             elif isinstance(value, int):
-                # Value is just ID, try to get the name
-                try:
-                    record = self.env[comodel_name].sudo().browse(value)
-                    if record.exists():
-                        return f"{field_label}: {record.display_name} (ID: {value})"
-                    else:
-                        return f"{field_label}: (deleted record, ID: {value})"
-                except:
-                    return f"{field_label}: ID {value}"
+                return f"{field_label}: ID {value}"
             else:
                 return f"{field_label}: {value}"
-        except:
-            return f"{field_label}: {value}"
-    
-    def _format_relation_field(self, field_label, value, comodel_name, field_type):
-        """Format one2many/many2many field values"""
+        except Exception:
+            return f"{field_label}: {str(value)}"
+
+    def _format_relation_field_ultra_safe(self, field_label, value, comodel_name):
+        """Ultra-safe relation field formatting"""
         if not value:
             return f"{field_label}: (empty)"
         
@@ -695,104 +796,160 @@ class AuditLogEntry(models.Model):
                 if len(value) == 0:
                     return f"{field_label}: (empty)"
                 elif len(value) <= 3:
-                    # Show individual records for small lists
-                    names = []
-                    for item_id in value:
-                        try:
-                            record = self.env[comodel_name].sudo().browse(item_id)
-                            if record.exists():
-                                names.append(record.display_name)
-                            else:
-                                names.append(f"ID: {item_id}")
-                        except:
-                            names.append(f"ID: {item_id}")
-                    return f"{field_label}: {', '.join(names)}"
+                    return f"{field_label}: {', '.join(map(str, value))}"
                 else:
-                    # Show count for large lists
                     return f"{field_label}: {len(value)} records"
             else:
                 return f"{field_label}: {value}"
-        except:
-            return f"{field_label}: {value}"
-    
-    def _format_selection_field(self, field_label, value, selection):
-        """Format selection field value"""
+        except Exception:
+            return f"{field_label}: {str(value)}"
+
+    def _format_selection_field_ultra_safe(self, field_label, value, selection):
+        """Ultra-safe selection field formatting"""
         if not value:
             return f"{field_label}: (not set)"
         
         try:
-            # Find the human-readable label for the selection value
-            if selection:
-                if callable(selection):
-                    # Dynamic selection - can't easily resolve
-                    return f"{field_label}: {value}"
-                else:
-                    # Static selection
-                    for sel_value, sel_label in selection:
-                        if sel_value == value:
-                            return f"{field_label}: {sel_label}"
-            
+            if selection and not callable(selection):
+                for sel_value, sel_label in selection:
+                    if sel_value == value:
+                        return f"{field_label}: {sel_label}"
             return f"{field_label}: {value}"
-        except:
-            return f"{field_label}: {value}"
-    
-    def _format_boolean_field(self, field_label, value):
-        """Format boolean field value"""
-        if value is True:
-            return f"{field_label}: Yes"
-        elif value is False:
-            return f"{field_label}: No"
-        else:
-            return f"{field_label}: {value}"
-    
-    def _format_date_field(self, field_label, value, field_type):
-        """Format date/datetime field value"""
+        except Exception:
+            return f"{field_label}: {str(value)}"
+
+    def _format_date_field_ultra_safe(self, field_label, value, field_type):
+        """Ultra-safe date formatting"""
         if not value:
             return f"{field_label}: (not set)"
         
         try:
-            if field_type == 'datetime':
-                # Parse datetime and format nicely
-                if isinstance(value, str):
-                    dt = fields.Datetime.from_string(value)
-                    return f"{field_label}: {dt.strftime('%Y-%m-%d %H:%M:%S')}"
-            elif field_type == 'date':
-                # Parse date and format nicely
-                if isinstance(value, str):
-                    dt = fields.Date.from_string(value)
-                    return f"{field_label}: {dt.strftime('%Y-%m-%d')}"
-            
-            return f"{field_label}: {value}"
-        except:
-            return f"{field_label}: {value}"
-    
-    def _format_numeric_field(self, field_label, value, field_type):
-        """Format numeric field value"""
+            return f"{field_label}: {str(value)}"
+        except Exception:
+            return f"{field_label}: {str(value)}"
+
+    def _format_numeric_field_ultra_safe(self, field_label, value, field_type):
+        """Ultra-safe numeric formatting"""
         if value is None or value == '':
             return f"{field_label}: (not set)"
         
         try:
-            if field_type == 'monetary':
-                # Format as currency (basic formatting)
-                return f"{field_label}: {float(value):,.2f}"
-            elif field_type == 'float':
-                # Format as float
+            if isinstance(value, (int, float)):
                 return f"{field_label}: {float(value):,.2f}"
             else:
                 return f"{field_label}: {value}"
-        except:
-            return f"{field_label}: {value}"
-    
-    def _format_text_field(self, field_label, value):
-        """Format text field value"""
+        except Exception:
+            return f"{field_label}: {str(value)}"
+
+    def _format_text_field_safe(self, field_label, value):
+        """Safe text field formatting"""
         if not value:
             return f"{field_label}: (empty)"
         
-        # Truncate long text values
-        if len(str(value)) > 100:
-            return f"{field_label}: {str(value)[:100]}... (truncated)"
+        try:
+            if len(str(value)) > 100:
+                return f"{field_label}: {str(value)[:100]}... (truncated)"
+            else:
+                return f"{field_label}: {value}"
+        except Exception:
+            return f"{field_label}: {str(value)}"
+
+    def _generate_changes_summary_safe(self, old_dict, new_dict):
+        """Safely generate changes summary with enhanced delete handling"""
+        try:
+            if self.action_type == 'create':
+                return self._generate_basic_create_summary(new_dict)
+            elif self.action_type == 'write':
+                return self._generate_basic_update_summary(old_dict, new_dict)
+            elif self.action_type == 'unlink':
+                return self._generate_delete_summary(old_dict)  # Enhanced delete summary
+            elif self.action_type == 'read':
+                return "Record was accessed"
+            else:
+                return f"Action: {self.action_type}"
+        except Exception as e:
+            return self._generate_basic_summary(old_dict, new_dict)
+
+    def _generate_basic_summary(self, old_dict, new_dict):
+        """Enhanced basic summary generation"""
+        try:
+            if self.action_type == 'create':
+                return f"New record created with {len(new_dict)} fields set"
+            elif self.action_type == 'write':
+                return f"Record updated - {len(new_dict)} fields modified"
+            elif self.action_type == 'unlink':
+                if old_dict:
+                    return f"Record deleted (had {len(old_dict)} fields)"
+                else:
+                    return "Record was deleted"
+            else:
+                return f"Action: {self.action_type}"
+        except Exception:
+            return "Record was modified"
+
+    def _generate_basic_create_summary(self, new_dict):
+        """Basic create summary"""
+        if not new_dict:
+            return "New record was created"
+        
+        # Look for common important fields
+        key_fields = ['name', 'title', 'subject', 'email']
+        important_values = []
+        
+        for field in key_fields:
+            if field in new_dict and new_dict[field]:
+                important_values.append(f"{field.title()}: {new_dict[field]}")
+        
+        if important_values:
+            return f"New record created with {', '.join(important_values[:2])}"
         else:
-            return f"{field_label}: {value}"
+            return f"New record created with {len(new_dict)} fields set"
+
+    def _generate_basic_update_summary(self, old_dict, new_dict):
+        """Basic update summary"""
+        if not new_dict:
+            return "Record was updated"
+        
+        try:
+            changed_count = len([k for k in new_dict.keys() if old_dict.get(k) != new_dict.get(k)])
+            if changed_count == 0:
+                return "Record was updated (no field changes detected)"
+            elif changed_count == 1:
+                field_name = list(new_dict.keys())[0]
+                field_label = field_name.replace('_', ' ').title()
+                return f"{field_label} was modified"
+            else:
+                return f"{changed_count} fields were modified"
+        except Exception:
+            return f"Record was updated"
+        
+    def _generate_delete_summary(self, old_dict):
+        """Generate meaningful summary for delete operations"""
+        if not old_dict:
+            return "Record was deleted"
+        
+        try:
+            # Look for identifying information in the deleted record
+            identifying_fields = ['name', 'title', 'subject', 'email', 'login', 'display_name']
+            identity_info = []
+            
+            for field in identifying_fields:
+                if field in old_dict and old_dict[field]:
+                    value = str(old_dict[field])
+                    if len(value) > 50:
+                        value = value[:50] + "..."
+                    identity_info.append(f"{field.title()}: {value}")
+            
+            if identity_info:
+                # Show the most important identifying information
+                return f"Deleted record: {', '.join(identity_info[:2])}"
+            else:
+                # Fallback: count of fields that were set
+                field_count = len([v for v in old_dict.values() if v is not None and v != ''])
+                return f"Record was deleted (had {field_count} fields set)"
+                
+        except Exception as e:
+            return "Record was deleted"
     
     def _generate_changes_summary(self, old_dict, new_dict):
         """Generate a summary of what changed"""
