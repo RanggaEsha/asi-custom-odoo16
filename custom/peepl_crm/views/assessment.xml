@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- ========================================= -->
+        <!-- ASSESSMENT TYPE VIEWS -->
+        <!-- ========================================= -->
+        
+        <!-- Assessment Type Tree View -->
+        <record id="crm_assessment_type_tree_view" model="ir.ui.view">
+            <field name="name">crm.assessment.type.tree</field>
+            <field name="model">crm.assessment.type</field>
+            <field name="arch" type="xml">
+                <tree string="Assessment Types" editable="bottom" multi_edit="1">
+                    <field name="sequence" widget="handle"/>
+                    <field name="name" required="1"/>
+                    <field name="code"/>
+                    <field name="description"/>
+                    <field name="lead_count" string="Leads"/>
+                    <field name="active" optional="hide"/>
+                    <field name="color" widget="color_picker" optional="hide"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Assessment Type Form View -->
+        <record id="crm_assessment_type_form_view" model="ir.ui.view">
+            <field name="name">crm.assessment.type.form</field>
+            <field name="model">crm.assessment.type</field>
+            <field name="arch" type="xml">
+                <form string="Assessment Type">
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button name="toggle_active" type="object"
+                                    class="oe_stat_button" icon="fa-archive">
+                                <field name="active" widget="boolean_button"
+                                       options='{"terminology": "archive"}'/>
+                            </button>
+                            <button name="action_view_leads" type="object"
+                                    class="oe_stat_button" icon="fa-users"
+                                    attrs="{'invisible': [('lead_count', '=', 0)]}">
+                                <field name="lead_count" widget="statinfo" string="Leads"/>
+                            </button>
+                        </div>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" class="text-break" placeholder="Assessment Type Name"/>
+                            </h1>
+                        </div>
+                        <group>
+                            <group>
+                                <field name="code" placeholder="e.g., TECH-EVAL"/>
+                                <field name="sequence"/>
+                            </group>
+                            <group>
+                                <field name="color" widget="color_picker"/>
+                            </group>
+                        </group>
+                        <group string="Description">
+                            <field name="description" nolabel="1" placeholder="Describe this assessment type..."/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Assessment Type Search View -->
+        <record id="crm_assessment_type_search_view" model="ir.ui.view">
+            <field name="name">crm.assessment.type.search</field>
+            <field name="model">crm.assessment.type</field>
+            <field name="arch" type="xml">
+                <search string="Search Assessment Types">
+                    <field name="name"/>
+                    <field name="code"/>
+                    <field name="description"/>
+                    <separator/>
+                    <filter string="Active" name="active" domain="[('active', '=', True)]"/>
+                    <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                </search>
+            </field>
+        </record>
+
+        <!-- Assessment Type Action -->
+        <record id="action_crm_assessment_type" model="ir.actions.act_window">
+            <field name="name">Assessment Types</field>
+            <field name="res_model">crm.assessment.type</field>
+            <field name="view_mode">tree,form</field>
+            <field name="search_view_id" ref="crm_assessment_type_search_view"/>
+            <field name="context">{'search_default_active': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Create your first assessment type!
+                </p>
+                <p>
+                    Define different types of assessments that can be assigned to leads and opportunities.
+                    Examples: Technical Assessment, Language Test, Personality Assessment, etc.
+                </p>
+            </field>
+        </record>
+
+        <!-- ========================================= -->
+        <!-- ASSESSMENT LANGUAGE VIEWS -->
+        <!-- ========================================= -->
+        
+        <!-- Assessment Language Tree View -->
+        <record id="crm_assessment_language_tree_view" model="ir.ui.view">
+            <field name="name">crm.assessment.language.tree</field>
+            <field name="model">crm.assessment.language</field>
+            <field name="arch" type="xml">
+                <tree string="Assessment Languages" editable="bottom" multi_edit="1">
+                    <field name="sequence" widget="handle"/>
+                    <field name="name" required="1"/>
+                    <field name="native_name"/>
+                    <field name="code"/>
+                    <field name="description"/>
+                    <field name="lead_count" string="Leads"/>
+                    <field name="active" optional="hide"/>
+                    <field name="color" widget="color_picker" optional="hide"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Assessment Language Form View -->
+        <record id="crm_assessment_language_form_view" model="ir.ui.view">
+            <field name="name">crm.assessment.language.form</field>
+            <field name="model">crm.assessment.language</field>
+            <field name="arch" type="xml">
+                <form string="Assessment Language">
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button name="toggle_active" type="object"
+                                    class="oe_stat_button" icon="fa-archive">
+                                <field name="active" widget="boolean_button"
+                                       options='{"terminology": "archive"}'/>
+                            </button>
+                            <button name="action_view_leads" type="object"
+                                    class="oe_stat_button" icon="fa-users"
+                                    attrs="{'invisible': [('lead_count', '=', 0)]}">
+                                <field name="lead_count" widget="statinfo" string="Leads"/>
+                            </button>
+                        </div>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" class="text-break" placeholder="Language Name"/>
+                            </h1>
+                        </div>
+                        <group>
+                            <group>
+                                <field name="code" placeholder="e.g., en, id, zh"/>
+                                <field name="native_name" placeholder="e.g., 中文, Bahasa Indonesia"/>
+                                <field name="sequence"/>
+                            </group>
+                            <group>
+                                <field name="color" widget="color_picker"/>
+                            </group>
+                        </group>
+                        <group string="Description">
+                            <field name="description" nolabel="1" placeholder="Additional information about this language..."/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Assessment Language Search View -->
+        <record id="crm_assessment_language_search_view" model="ir.ui.view">
+            <field name="name">crm.assessment.language.search</field>
+            <field name="model">crm.assessment.language</field>
+            <field name="arch" type="xml">
+                <search string="Search Assessment Languages">
+                    <field name="name"/>
+                    <field name="native_name"/>
+                    <field name="code"/>
+                    <field name="description"/>
+                    <separator/>
+                    <filter string="Active" name="active" domain="[('active', '=', True)]"/>
+                    <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                </search>
+            </field>
+        </record>
+
+        <!-- Assessment Language Action -->
+        <record id="action_crm_assessment_language" model="ir.actions.act_window">
+            <field name="name">Assessment Languages</field>
+            <field name="res_model">crm.assessment.language</field>
+            <field name="view_mode">tree,form</field>
+            <field name="search_view_id" ref="crm_assessment_language_search_view"/>
+            <field name="context">{'search_default_active': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Create your first assessment language!
+                </p>
+                <p>
+                    Define languages available for assessments.
+                    Examples: English, Indonesian, Mandarin, Japanese, etc.
+                </p>
+            </field>
+        </record>
+
+        <!-- ========================================= -->
+        <!-- MENU ITEMS -->
+        <!-- ========================================= -->
+        
+        <!-- Configuration Menu -->
+        <menuitem id="menu_crm_assessment_config" 
+                  name="Assessment Configuration" 
+                  parent="crm.crm_menu_config"
+                  sequence="10"/>
+
+        <!-- Assessment Types Menu -->
+        <menuitem id="menu_crm_assessment_type" 
+                  name="Assessment Types" 
+                  parent="menu_crm_assessment_config" 
+                  action="action_crm_assessment_type"
+                  sequence="10"/>
+
+        <!-- Assessment Languages Menu -->
+        <menuitem id="menu_crm_assessment_language" 
+                  name="Assessment Languages" 
+                  parent="menu_crm_assessment_config" 
+                  action="action_crm_assessment_language"
+                  sequence="20"/>
+
+    </data>
+</odoo>

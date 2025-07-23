@@ -155,19 +155,41 @@
                             <field name="test_finish_date" class="oe_inline" style="width: 45%;"/>
                         </div>
                         
+                        <!-- REFACTORED: Many2one field with options -->
                         <label for="type_of_assessment" string="Type of Assessment" colspan="1"/>
                         <div colspan="3">
-                            <field name="type_of_assessment" style="width: 400px; min-width: 400px;"/>
+                            <field name="type_of_assessment" 
+                                class="oe_inline" 
+                                style="width: 300px; min-width: 300px;"
+                                options="{'no_create_edit': False, 'no_create': False}"
+                                context="{'form_view_ref': 'your_module.crm_assessment_type_form_view'}"/>
+                            <button name="%(action_crm_assessment_type)d" 
+                                    type="action" 
+                                    icon="fa-cog" 
+                                    class="btn-link" 
+                                    title="Configure Assessment Types"
+                                    style="margin-left: 5px;"/>
                         </div>
                         
+                        <!-- REFACTORED: Many2one field with options -->
                         <label for="assessment_language" string="Assessment Language" colspan="1"/>
                         <div colspan="3">
-                            <field name="assessment_language" style="width: 400px; min-width: 400px;"/>
+                            <field name="assessment_language" 
+                                class="oe_inline" 
+                                style="width: 300px; min-width: 300px;"
+                                options="{'no_create_edit': False, 'no_create': False}"
+                                context="{'form_view_ref': 'your_module.crm_assessment_language_form_view'}"/>
+                            <button name="%(action_crm_assessment_language)d" 
+                                    type="action" 
+                                    icon="fa-cog" 
+                                    class="btn-link" 
+                                    title="Configure Assessment Languages"
+                                    style="margin-left: 5px;"/>
                         </div>
                         
                         <label for="purpose" string="Purpose" colspan="1"/>
                         <div colspan="3">
-                            <field name="purpose" placeholder="What is the purpose of this assessment?" style="width: 500px; min-width: 500px;"/>
+                            <field name="purpose" class="oe_inline" placeholder="What is the purpose of this assessment?" style="width: 400px; min-width: 400px;"/>
                         </div>
                     </group>
                 </xpath>
@@ -201,7 +223,7 @@
                 </button>
 
                 <!-- Add Participant Data section in notebook -->
-                <xpath expr="//page[@name='lead']" position="after">
+                <xpath expr="//page" position="before">
                     <page string="Participant Data" name="participant_data" attrs="{'invisible': [('has_participant_data', '=', False)]}">
                         <div class="alert alert-info" role="alert">
                             <strong>Import Data:</strong> You can import participant data from Excel or CSV files. 

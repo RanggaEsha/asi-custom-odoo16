@@ -2,9 +2,150 @@
 <odoo>
     <data noupdate="1">
         
-        <!-- Add admin user to handover manager group by default -->
-        <record id="base.user_admin" model="res.users">
-            <field name="groups_id" eval="[(4, ref('group_handover_manager'))]"/>
+        <!-- ========================================= -->
+        <!-- DEFAULT ASSESSMENT TYPES -->
+        <!-- ========================================= -->
+        
+        <record id="assessment_type_technical" model="crm.assessment.type">
+            <field name="name">Technical Assessment</field>
+            <field name="code">TECH</field>
+            <field name="description">Evaluate technical skills, programming abilities, and problem-solving capabilities</field>
+            <field name="sequence">10</field>
+            <field name="color">1</field>
+        </record>
+
+        <record id="assessment_type_language" model="crm.assessment.type">
+            <field name="name">Language Proficiency Test</field>
+            <field name="code">LANG</field>
+            <field name="description">Assess language skills including speaking, listening, reading, and writing</field>
+            <field name="sequence">20</field>
+            <field name="color">2</field>
+        </record>
+
+        <record id="assessment_type_personality" model="crm.assessment.type">
+            <field name="name">Personality Assessment</field>
+            <field name="code">PERS</field>
+            <field name="description">Evaluate personality traits, behavioral patterns, and cultural fit</field>
+            <field name="sequence">30</field>
+            <field name="color">3</field>
+        </record>
+
+        <record id="assessment_type_cognitive" model="crm.assessment.type">
+            <field name="name">Cognitive Ability Test</field>
+            <field name="code">COG</field>
+            <field name="description">Measure logical reasoning, numerical ability, and critical thinking skills</field>
+            <field name="sequence">40</field>
+            <field name="color">4</field>
+        </record>
+
+        <record id="assessment_type_leadership" model="crm.assessment.type">
+            <field name="name">Leadership Assessment</field>
+            <field name="code">LEAD</field>
+            <field name="description">Evaluate leadership potential, management style, and team collaboration skills</field>
+            <field name="sequence">50</field>
+            <field name="color">5</field>
+        </record>
+
+        <record id="assessment_type_skill" model="crm.assessment.type">
+            <field name="name">Skill-Based Assessment</field>
+            <field name="code">SKILL</field>
+            <field name="description">Test specific job-related skills and competencies</field>
+            <field name="sequence">60</field>
+            <field name="color">6</field>
+        </record>
+
+        <!-- ========================================= -->
+        <!-- DEFAULT ASSESSMENT LANGUAGES -->
+        <!-- ========================================= -->
+        
+        <record id="assessment_lang_english" model="crm.assessment.language">
+            <field name="name">English</field>
+            <field name="code">en</field>
+            <field name="native_name">English</field>
+            <field name="description">International business language</field>
+            <field name="sequence">10</field>
+            <field name="color">1</field>
+        </record>
+
+        <record id="assessment_lang_indonesian" model="crm.assessment.language">
+            <field name="name">Indonesian</field>
+            <field name="code">id</field>
+            <field name="native_name">Bahasa Indonesia</field>
+            <field name="description">National language of Indonesia</field>
+            <field name="sequence">20</field>
+            <field name="color">2</field>
+        </record>
+
+        <record id="assessment_lang_mandarin" model="crm.assessment.language">
+            <field name="name">Mandarin Chinese</field>
+            <field name="code">zh</field>
+            <field name="native_name">中文</field>
+            <field name="description">Simplified Chinese for business and academic purposes</field>
+            <field name="sequence">30</field>
+            <field name="color">3</field>
+        </record>
+
+        <record id="assessment_lang_japanese" model="crm.assessment.language">
+            <field name="name">Japanese</field>
+            <field name="code">ja</field>
+            <field name="native_name">日本語</field>
+            <field name="description">Japanese language for business and cultural assessment</field>
+            <field name="sequence">40</field>
+            <field name="color">4</field>
+        </record>
+
+        <record id="assessment_lang_korean" model="crm.assessment.language">
+            <field name="name">Korean</field>
+            <field name="code">ko</field>
+            <field name="native_name">한국어</field>
+            <field name="description">Korean language for regional business needs</field>
+            <field name="sequence">50</field>
+            <field name="color">5</field>
+        </record>
+
+        <record id="assessment_lang_spanish" model="crm.assessment.language">
+            <field name="name">Spanish</field>
+            <field name="code">es</field>
+            <field name="native_name">Español</field>
+            <field name="description">Spanish language for international markets</field>
+            <field name="sequence">60</field>
+            <field name="color">6</field>
+        </record>
+
+        <record id="assessment_lang_french" model="crm.assessment.language">
+            <field name="name">French</field>
+            <field name="code">fr</field>
+            <field name="native_name">Français</field>
+            <field name="description">French language for European and African markets</field>
+            <field name="sequence">70</field>
+            <field name="color">7</field>
+        </record>
+
+        <record id="assessment_lang_german" model="crm.assessment.language">
+            <field name="name">German</field>
+            <field name="code">de</field>
+            <field name="native_name">Deutsch</field>
+            <field name="description">German language for European business</field>
+            <field name="sequence">80</field>
+            <field name="color">8</field>
+        </record>
+
+        <record id="assessment_lang_thai" model="crm.assessment.language">
+            <field name="name">Thai</field>
+            <field name="code">th</field>
+            <field name="native_name">ไทย</field>
+            <field name="description">Thai language for Southeast Asian market</field>
+            <field name="sequence">90</field>
+            <field name="color">9</field>
+        </record>
+
+        <record id="assessment_lang_vietnamese" model="crm.assessment.language">
+            <field name="name">Vietnamese</field>
+            <field name="code">vi</field>
+            <field name="native_name">Tiếng Việt</field>
+            <field name="description">Vietnamese language for regional expansion</field>
+            <field name="sequence">100</field>
+            <field name="color">10</field>
         </record>
 
     </data>

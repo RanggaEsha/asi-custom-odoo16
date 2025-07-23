@@ -103,3 +103,109 @@ class CrmParticipant(models.Model):
                 created_participants.append(participant)
         
         return created_participants
+
+# -*- coding: utf-8 -*-
+
+from odoo import api, fields, models, _
+from odoo.exceptions import UserError
+
+
+class AssessmentType(models.Model):
+    _name = 'crm.assessment.type'
+    _description = 'Assessment Type Configuration'
+    _order = 'sequence, name'
+    _rec_name = 'name'
+
+    name = fields.Char(string='Assessment Type', required=True, translate=True)
+    description = fields.Text(string='Description', translate=True)
+    code = fields.Char(string='Code', help='Internal code for identification')
+    active = fields.Boolean(string='Active', default=True)
+    sequence = fields.Integer(string='Sequence', default=10, help='Order of appearance')
+    color = fields.Integer(string='Color', help='Color for display purposes')
+    
+    # Statistical fields
+    lead_count = fields.Integer(string='Number of Leads', compute='_compute_lead_count', store=True)
+    
+    @api.depends('name')
+    def _compute_lead_count(self):
+        """Count leads using this assessment type"""
+        for record in self:
+            record.lead_count = self.env['crm.lead'].search_count([('type_of_assessment', '=', record.id)])
+    
+    @api.constrains('code')
+    def _check_unique_code(self):
+        """Ensure code is unique if provided"""
+        for record in self:
+            if record.code:
+                existing = self.search([('code', '=', record.code), ('id', '!=', record.id)])
+                if existing:
+                    raise UserError(_('Assessment type code "%s" already exists. Please use a unique code.') % record.code)
+    
+    def action_view_leads(self):
+        """Open leads using this assessment type"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Leads with %s') % self.name,
+            'res_model': 'crm.lead',
+            'view_mode': 'tree,form',
+            'domain': [('type_of_assessment', '=', self.id)],
+            'context': {'default_type_of_assessment': self.id},
+        }
+
+
+class AssessmentLanguage(models.Model):
+    _name = 'crm.assessment.language'
+    _description = 'Assessment Language Configuration'
+    _order = 'sequence, name'
+    _rec_name = 'name'
+
+    name = fields.Char(string='Language Name', required=True, translate=True)
+    code = fields.Char(string='Language Code', help='ISO language code (e.g., en, id, zh)')
+    native_name = fields.Char(string='Native Name', help='Language name in its native script')
+    description = fields.Text(string='Description', translate=True)
+    active = fields.Boolean(string='Active', default=True)
+    sequence = fields.Integer(string='Sequence', default=10, help='Order of appearance')
+    color = fields.Integer(string='Color', help='Color for display purposes')
+    
+    # Statistical fields
+    lead_count = fields.Integer(string='Number of Leads', compute='_compute_lead_count', store=True)
+    
+    @api.depends('name')
+    def _compute_lead_count(self):
+        """Count leads using this assessment language"""
+        for record in self:
+            record.lead_count = self.env['crm.lead'].search_count([('assessment_language', '=', record.id)])
+    
+    @api.constrains('code')
+    def _check_unique_code(self):
+        """Ensure language code is unique if provided"""
+        for record in self:
+            if record.code:
+                existing = self.search([('code', '=', record.code), ('id', '!=', record.id)])
+                if existing:
+                    raise UserError(_('Language code "%s" already exists. Please use a unique code.') % record.code)
+    
+    def name_get(self):
+        """Display name with native name if available"""
+        result = []
+        for record in self:
+            name = record.name
+            if record.native_name and record.native_name != record.name:
+                name += f' ({record.native_name})'
+            if record.code:
+                name += f' [{record.code}]'
+            result.append((record.id, name))
+        return result
+    
+    def action_view_leads(self):
+        """Open leads using this assessment language"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Leads with %s') % self.name,
+            'res_model': 'crm.lead',
+            'view_mode': 'tree,form',
+            'domain': [('assessment_language', '=', self.id)],
+            'context': {'default_assessment_language': self.id},
+        }

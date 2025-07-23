@@ -12,20 +12,37 @@
     CRM Sales to Solution Delivery Handover Module with Participant Management
     ========================================================================
     
-    Features:
-    - Create tasks in existing projects directly from CRM leads
-    - Sales to Solution Delivery team handover process
-    - Maintain client relationships post-sales through Solution Delivery team
-    - Separate revenue tracking for both teams
-    - Complete audit trail of handover process
-    - Dedicated views and workflows for handover management
-    - Task tracking and management linked to opportunities
-    - Secure handover workflow with proper permissions
-    - Participant data management with import capabilities
-    - Import participants from Excel/CSV files
-    - Track participant test results and levels
-    
-    Task on Lead, Add Task from Lead, Task Lead, Create Task from Lead, Sales Handover, Solution Delivery Pipeline, CRM Team Management, Handover Lead Management, Participant Data Management, Import Participants.
+This module extends Odoo CRM with advanced assessment management capabilities:
+        
+        Assessment Management:
+        * Configurable assessment types (Technical, Language, Personality, etc.)
+        * Flexible assessment language configuration
+        * Assessment period tracking with start and end dates
+        * Customizable purpose field for assessment details
+        
+        Participant Management:
+        * Detailed participant tracking per lead/opportunity
+        * Participant data import capabilities
+        * Individual participant profiles with job titles and levels
+        * Bulk participant management
+        
+        Configuration Features:
+        * Assessment Type Configuration - Add/edit assessment types
+        * Assessment Language Configuration - Manage available languages
+        * Color-coded categorization for visual organization
+        * Statistical tracking of usage per type/language
+        
+        Integration Features:
+        * Seamless CRM integration
+        * Assessment workflow management
+        * Participant relationship tracking
+        * Enhanced lead/opportunity forms
+        
+        Data Management:
+        * Bulk import/export capabilities
+        * Data validation and constraints
+        * Archive functionality for historical data
+        * Comprehensive search and filtering
 """,
     'author': 'Ahmad Rangga',
     'website': 'https://www.browseinfo.com/demo-request?app=bi_crm_task&version=16&edition=Community',
@@ -33,9 +50,14 @@
     'data': [
             'security/security.xml',
             'security/ir.model.access.csv',
+            'views/assessment.xml',
             'views/crm_lead_view.xml',
             'views/crm_participant.xml'
-            ],
+            
+    ],
+    'demo': [
+        'demo/demo_data.xml',
+    ],
     'installable': True,
     'auto_install': False,
     'application': True,

@@ -49,31 +49,112 @@ class crm_lead(models.Model):
     is_won_stage = fields.Boolean(string='Is Won Stage', compute='_compute_is_won_stage',
                                 help='True if current stage is marked as won')
     
-    # Participant data fields
-    has_participant_data = fields.Boolean(string='Has Participant Data', default=False,
-                                        help='Enable to manage participant data for this lead/opportunity')
+    # Participant management
+    has_participant_data = fields.Boolean(string='Has Participant Data', default=False)
+    test_start_date = fields.Date(string='Test Start Date')
+    test_finish_date = fields.Date(string='Test Finish Date')
+    purpose = fields.Text(string='Purpose')
+    
+    # REFACTORED: Changed from Selection to Many2one
+    type_of_assessment = fields.Many2one(
+        'crm.assessment.type', 
+        string='Type of Assessment',
+        help='Select the type of assessment for this lead'
+    )
+    
+    assessment_language = fields.Many2one(
+        'crm.assessment.language',
+        string='Assessment Language', 
+        help='Select the language for the assessment'
+    )
+    
+    # Participant management
     participant_ids = fields.One2many('crm.participant', 'lead_id', string='Participants')
     participant_count = fields.Integer(string='Participant Count', compute='_compute_participant_count')
     
-    # Assessment fields (visible when has_participant_data is True)
-    purpose = fields.Text(string='Purpose', help='Purpose of the assessment')
-    test_start_date = fields.Date(string='Test Start Date')
-    test_finish_date = fields.Date(string='Test Finish Date')
-    type_of_assessment = fields.Selection([
-        ('written', 'Written'),
-        ('practical', 'Practical'),
-        ('oral', 'Oral'),
-        ('mixed', 'Mixed'),
-        ('online', 'Online')
-    ], string='Type of Assessment')
-    assessment_language = fields.Selection([
-        ('english', 'English'),
-        ('indonesian', 'Indonesian'),
-        ('mandarin', 'Mandarin'),
-        ('japanese', 'Japanese'),
-        ('korean', 'Korean'),
-        ('other', 'Other')
-    ], string='Assessment Language')
+    @api.depends('participant_ids')
+    def _compute_participant_count(self):
+        """Count participants for this lead"""
+        for record in self:
+            record.participant_count = len(record.participant_ids)
+    
+    def action_view_participants(self):
+        """Open participants view for this lead"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'Participants - {self.name}',
+            'res_model': 'crm.participant',
+            'view_mode': 'tree,form',
+            'domain': [('lead_id', '=', self.id)],
+            'context': {'default_lead_id': self.id},
+        }
+    
+    @api.onchange('type_of_assessment')
+    def _onchange_type_of_assessment(self):
+        """Update purpose field when assessment type changes"""
+        if self.type_of_assessment and self.type_of_assessment.description:
+            if not self.purpose:
+                self.purpose = self.type_of_assessment.description
+    
+    @api.onchange('has_participant_data')
+    def _onchange_has_participant_data(self):
+        """Clear assessment fields when participant data is disabled"""
+        if not self.has_participant_data:
+            self.type_of_assessment = False
+            self.assessment_language = False
+            self.test_start_date = False
+            self.test_finish_date = False
+            self.purpose = False
+    
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Update assessment type/language counts when creating leads"""
+        records = super().create(vals_list)
+        self._update_assessment_counts(records)
+        return records
+    
+    def write(self, vals):
+        """Update assessment type/language counts when updating leads"""
+        old_assessment_types = self.mapped('type_of_assessment')
+        old_assessment_languages = self.mapped('assessment_language')
+        
+        result = super().write(vals)
+        
+        if 'type_of_assessment' in vals or 'assessment_language' in vals:
+            new_assessment_types = self.mapped('type_of_assessment')
+            new_assessment_languages = self.mapped('assessment_language')
+            
+            # Update counts for old and new assessment types/languages
+            all_types = (old_assessment_types | new_assessment_types).filtered(lambda x: x)
+            all_languages = (old_assessment_languages | new_assessment_languages).filtered(lambda x: x)
+            
+            self._update_specific_counts(all_types, all_languages)
+        
+        return result
+    
+    def unlink(self):
+        """Update assessment type/language counts when deleting leads"""
+        assessment_types = self.mapped('type_of_assessment').filtered(lambda x: x)
+        assessment_languages = self.mapped('assessment_language').filtered(lambda x: x)
+        
+        result = super().unlink()
+        
+        self._update_specific_counts(assessment_types, assessment_languages)
+        return result
+    
+    def _update_assessment_counts(self, records):
+        """Helper method to update assessment counts"""
+        assessment_types = records.mapped('type_of_assessment').filtered(lambda x: x)
+        assessment_languages = records.mapped('assessment_language').filtered(lambda x: x)
+        self._update_specific_counts(assessment_types, assessment_languages)
+    
+    def _update_specific_counts(self, assessment_types, assessment_languages):
+        """Update lead counts for specific assessment types and languages"""
+        if assessment_types:
+            assessment_types._compute_lead_count()
+        if assessment_languages:
+            assessment_languages._compute_lead_count()
     
     def action_handover_to_solution_delivery(self):
         """Open handover wizard for team selection"""
