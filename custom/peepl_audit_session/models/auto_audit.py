@@ -20,7 +20,7 @@ class BaseModelOptimized(models.AbstractModel):
         # Skip audit models themselves
         if self._name.startswith('audit.'):
             return False
-            
+        
         # Skip system models that generate noise
         skip_models = {
             'ir.logging', 'ir.attachment', 'ir.translation', 'ir.config_parameter',
@@ -37,8 +37,8 @@ class BaseModelOptimized(models.AbstractModel):
             ctx.get('import_file') or ctx.get('_import_current_module')):
             return False
             
-        # Skip if no user context (system operations)
-        if not self.env.user or self.env.user.id in (1, 2):  # Skip superuser and public
+        # Skip if no user context - but allow superuser if explicitly configured
+        if not self.env.user:
             return False
             
         # PERFORMANCE: Cache config check with better cache key
@@ -69,7 +69,7 @@ class BaseModelOptimized(models.AbstractModel):
         elif operation == 'unlink' and not config.log_unlink:
             return False
             
-        # Quick user check
+        # Quick user check - IMPORTANT: Don't automatically skip superuser
         if not config.all_users:
             user_cache_key = f'_audit_users_cache_{config.id}'
             if not hasattr(self.env, user_cache_key):
@@ -80,6 +80,11 @@ class BaseModelOptimized(models.AbstractModel):
                     return False
             audit_users = getattr(self.env, user_cache_key)
             if self.env.user.id not in audit_users:
+                return False
+        else:
+            # If all_users is True, we still need to check for public user
+            # Public user (ID 2) should generally be skipped unless explicitly configured
+            if self.env.user.id == 2:  # Skip only public user, not superuser
                 return False
                 
         # Quick model check

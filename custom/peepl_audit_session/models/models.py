@@ -92,6 +92,112 @@ class AuditConfig(models.Model):
             return model_name in self.object_ids.mapped('model_id.model')
         except Exception:
             return False
+        
+    def action_clear_audit_cache(self):
+        """Manual action to clear all audit caches - useful for debugging"""
+        # Clear all possible audit caches
+        cache_keys_to_clear = ['_audit_config_cache']
+        
+        # Add specific caches for all configs
+        all_configs = self.env['audit.config'].search([])
+        for config in all_configs:
+            cache_keys_to_clear.extend([
+                f'_audit_users_cache_{config.id}',
+                f'_audit_models_cache_{config.id}',
+                f'_audit_config_cache_{config.id}'
+            ])
+        
+        cleared_count = 0
+        for cache_key in cache_keys_to_clear:
+            if hasattr(self.env, cache_key):
+                delattr(self.env, cache_key)
+                cleared_count += 1
+        
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Cache Cleared',
+                'message': f'Cleared {cleared_count} audit cache entries. Configuration changes will now take effect.',
+                'type': 'success'
+            }
+        }
+
+    def get_audit_debug_info(self):
+        """Get debug information about current audit configuration"""
+        debug_info = {
+            'config_active': self.active,
+            'enable_auditing': self.enable_auditing,
+            'all_users': self.all_users,
+            'all_objects': self.all_objects,
+            'audit_users': [],
+            'audit_models': [],
+            'current_user_audited': False,
+        }
+        
+        if not self.all_users:
+            debug_info['audit_users'] = [
+                {'id': user.user_id.id, 'name': user.user_id.name} 
+                for user in self.user_ids
+            ]
+            debug_info['current_user_audited'] = self.env.user.id in [u.user_id.id for u in self.user_ids]
+        else:
+            debug_info['current_user_audited'] = True
+        
+        if not self.all_objects:
+            debug_info['audit_models'] = [
+                {'id': obj.model_id.id, 'model': obj.model_id.model, 'name': obj.model_id.name} 
+                for obj in self.object_ids
+            ]
+        
+        return debug_info
+    
+    def write(self, vals):
+        """Override write to invalidate caches when config changes"""
+        result = super().write(vals)
+        
+        # Invalidate audit caches when configuration changes
+        cache_keys_to_clear = [
+            '_audit_config_cache',
+            f'_audit_users_cache_{self.id}',
+            f'_audit_models_cache_{self.id}'
+        ]
+        
+        for cache_key in cache_keys_to_clear:
+            if hasattr(self.env, cache_key):
+                delattr(self.env, cache_key)
+        
+        return result
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Override create to invalidate caches"""
+        records = super().create(vals_list)
+        
+        # Clear global audit config cache
+        if hasattr(self.env, '_audit_config_cache'):
+            delattr(self.env, '_audit_config_cache')
+            
+        return records
+
+    def unlink(self):
+        """Override unlink to invalidate caches"""
+        config_ids = self.ids
+        result = super().unlink()
+        
+        # Clear caches for deleted configs
+        cache_keys_to_clear = ['_audit_config_cache']
+        for config_id in config_ids:
+            cache_keys_to_clear.extend([
+                f'_audit_users_cache_{config_id}',
+                f'_audit_models_cache_{config_id}'
+            ])
+        
+        for cache_key in cache_keys_to_clear:
+            if hasattr(self.env, cache_key):
+                delattr(self.env, cache_key)
+                
+        return result
 
 
 class AuditConfigUser(models.Model):
@@ -102,6 +208,44 @@ class AuditConfigUser(models.Model):
     config_id = fields.Many2one('audit.config', 'Configuration', required=True, ondelete='cascade')
     user_id = fields.Many2one('res.users', 'User', required=True)
 
+    def write(self, vals):
+        """Override write to invalidate user cache"""
+        result = super().write(vals)
+        
+        # Invalidate user cache for affected configs
+        for record in self:
+            cache_key = f'_audit_users_cache_{record.config_id.id}'
+            if hasattr(self.env, cache_key):
+                delattr(self.env, cache_key)
+                
+        return result
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Override create to invalidate user cache"""
+        records = super().create(vals_list)
+        
+        # Invalidate user cache for affected configs
+        config_ids = set(record.config_id.id for record in records)
+        for config_id in config_ids:
+            cache_key = f'_audit_users_cache_{config_id}'
+            if hasattr(self.env, cache_key):
+                delattr(self.env, cache_key)
+                
+        return records
+
+    def unlink(self):
+        """Override unlink to invalidate user cache"""
+        config_ids = set(record.config_id.id for record in self)
+        result = super().unlink()
+        
+        # Invalidate user cache for affected configs
+        for config_id in config_ids:
+            cache_key = f'_audit_users_cache_{config_id}'
+            if hasattr(self.env, cache_key):
+                delattr(self.env, cache_key)
+                
+        return result
 
 class AuditConfigObject(models.Model):
     """Audit Configuration Objects"""
@@ -109,13 +253,47 @@ class AuditConfigObject(models.Model):
     _description = 'Audit Configuration Objects'
 
     config_id = fields.Many2one('audit.config', 'Configuration', required=True, ondelete='cascade')
-    model_id = fields.Many2one(
-        'ir.model',
-        string='Model',
-        ondelete='cascade',  # <-- change from 'set null' to 'cascade'
-        required=True,
-    )
+    model_id = fields.Many2one('ir.model', string='Model', ondelete='cascade', required=True)
     model_name = fields.Char(related='model_id.model', store=True)
+
+    def write(self, vals):
+        """Override write to invalidate model cache"""
+        result = super().write(vals)
+        
+        # Invalidate model cache for affected configs
+        for record in self:
+            cache_key = f'_audit_models_cache_{record.config_id.id}'
+            if hasattr(self.env, cache_key):
+                delattr(self.env, cache_key)
+                
+        return result
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Override create to invalidate model cache"""
+        records = super().create(vals_list)
+        
+        # Invalidate model cache for affected configs
+        config_ids = set(record.config_id.id for record in records)
+        for config_id in config_ids:
+            cache_key = f'_audit_models_cache_{config_id}'
+            if hasattr(self.env, cache_key):
+                delattr(self.env, cache_key)
+                
+        return records
+
+    def unlink(self):
+        """Override unlink to invalidate model cache"""
+        config_ids = set(record.config_id.id for record in self)
+        result = super().unlink()
+        
+        # Invalidate model cache for affected configs
+        for config_id in config_ids:
+            cache_key = f'_audit_models_cache_{config_id}'
+            if hasattr(self.env, cache_key):
+                delattr(self.env, cache_key)
+                
+        return result
 
 
 class AuditSession(models.Model):

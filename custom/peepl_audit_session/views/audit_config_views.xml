@@ -31,6 +31,10 @@
                         <button name="%(action_audit_clear_wizard)d" string="Clear Logs" 
                                 type="action" class="btn-primary" 
                                 groups="peepl_audit_session.group_audit_manager"/>
+                        <button name="action_clear_audit_cache" string="Clear Cache" 
+                            type="object" class="btn-secondary" 
+                            groups="peepl_audit_session.group_audit_manager"
+                            help="Clear audit configuration cache. Use this if changes are not taking effect."/>
                     </header>
                     <sheet>
                         <div class="oe_title">
@@ -43,6 +47,7 @@
                                 <field name="enable_auditing" widget="boolean_toggle"/>
                                 <field name="auto_cleanup_days"/>
                                 <field name="session_timeout_hours"/>
+                                <field name="id" invisible="1"/>
                             </group>
                         </group>
                         
@@ -71,6 +76,16 @@
                                         <field name="user_id"/>
                                     </tree>
                                 </field>
+                                <div class="alert alert-info mt16" role="alert" attrs="{'invisible': [('all_users', '=', True)]}">
+                                    <strong>Current Configuration:</strong> Only the users listed below will be audited.
+                                    <br/>If the list is empty, <strong>no users will be audited</strong>.
+                                    <br/>Note: Changes take effect immediately but may require refreshing your browser.
+                                </div>
+                                
+                                <div class="alert alert-warning mt16" role="alert" attrs="{'invisible': [('all_users', '=', False)]}">
+                                    <strong>Current Configuration:</strong> All users (including superuser) will be audited.
+                                    <br/>This includes user actions performed by system administrators.
+                                </div>
                             </page>
                             
                             <page string="Models to Audit">
@@ -83,6 +98,16 @@
                                         <field name="model_name"/>
                                     </tree>
                                 </field>
+                                <div class="alert alert-info mt16" role="alert" attrs="{'invisible': [('all_objects', '=', True)]}">
+                                    <strong>Current Configuration:</strong> Only the models listed below will be audited.
+                                    <br/>If the list is empty, <strong>no models will be audited</strong>.
+                                    <br/>Common models to audit: res.users, res.partner, sale.order, purchase.order, account.move
+                                </div>
+                                
+                                <div class="alert alert-warning mt16" role="alert" attrs="{'invisible': [('all_objects', '=', False)]}">
+                                    <strong>Current Configuration:</strong> All models will be audited.
+                                    <br/>This may impact system performance. Consider selecting specific models for better performance.
+                                </div>
                             </page>
                         </notebook>
                     </sheet>
