@@ -7,50 +7,26 @@ _logger = logging.getLogger(__name__)
 
 
 class ResUsers(models.Model):
-    """Enhanced res.users with multiple login hooks for reliable session creation"""
+    """Enhanced res.users with reliable session creation hooks"""
     _inherit = 'res.users'
 
     def _update_last_login(self):
         """Primary login hook - called during standard login process"""
-        _logger.info(f"LOGIN_HOOK_1 - _update_last_login called for user {self.login}")
+        _logger.info(f"LOGIN_HOOK - _update_last_login called for user {self.login}")
         
         result = super()._update_last_login()
         
         # Skip during module installation
         if self.env.context.get('module') or self.env.context.get('install_mode'):
-            _logger.info("LOGIN_HOOK_1 - Skipping audit during module installation")
+            _logger.info("LOGIN_HOOK - Skipping audit during module installation")
             return result
         
         try:
             self._create_audit_session_on_login()
         except Exception as e:
-            _logger.error(f"LOGIN_HOOK_1 - Failed to track login for user {self.login}: {e}")
+            _logger.error(f"LOGIN_HOOK - Failed to track login for user {self.login}: {e}")
                 
         return result
-
-    @api.model
-    def authenticate(self, db, login, password, user_agent_env=None):
-        """Secondary login hook - called during authentication"""
-        _logger.info(f"LOGIN_HOOK_2 - authenticate called for login {login}")
-        
-        try:
-            # Call original authenticate
-            result = super().authenticate(db, login, password, user_agent_env)
-            
-            if result:  # Successful authentication
-                _logger.info(f"LOGIN_HOOK_2 - Authentication successful for user ID {result}")
-                
-                # Create session for authenticated user
-                user = self.browse(result)
-                if user.exists():
-                    user._create_audit_session_on_login()
-                    
-            return result
-            
-        except Exception as e:
-            _logger.error(f"LOGIN_HOOK_2 - Authentication hook failed: {e}")
-            # Don't interfere with authentication, just log the error
-            return super().authenticate(db, login, password, user_agent_env)
 
     def _create_audit_session_on_login(self):
         """Enhanced session creation with multiple fallback strategies"""
@@ -551,6 +527,100 @@ class AuditSession(models.Model):
             'error_sessions': self.search_count([('status', '=', 'error')]),
             'browser_closed_sessions': self.search_count([('browser_closed', '=', True)]),
         }
+
+    def get_session_debug_info(self):
+        """Get comprehensive debug info for a session"""
+        self.ensure_one()
+        
+        return {
+            'id': self.id,
+            'session_id': self.session_id,
+            'user_id': self.user_id.id,
+            'user_name': self.user_id.name,
+            'status': self.status,
+            'login_time': self.login_time.isoformat() if self.login_time else None,
+            'logout_time': self.logout_time.isoformat() if self.logout_time else None,
+            'last_activity': self.last_activity.isoformat() if self.last_activity else None,
+            'heartbeat_count': self.heartbeat_count,
+            'log_count': len(self.log_entry_ids),
+            'device_info': {
+                'device_type': self.device_type,
+                'browser': self.browser,
+                'os': self.os,
+                'ip_address': self.ip_address,
+                'country': self.country,
+                'city': self.city
+            },
+            'error_message': self.error_message,
+            'browser_closed': self.browser_closed,
+            'concurrent_sessions': self.concurrent_sessions
+        }
+
+    @api.model
+    def cleanup_expired_sessions_enhanced(self):
+        """Enhanced cleanup with better session status detection (called by cron)"""
+        try:
+            from datetime import datetime, timedelta
+            import logging
+            _logger = logging.getLogger(__name__)
+            
+            # Get configuration
+            config = self.env['audit.config'].search([('active', '=', True)], limit=1)
+            timeout_hours = config.session_timeout_hours if config else 24
+            
+            current_time = datetime.now()
+            cutoff_time = current_time - timedelta(hours=timeout_hours)
+            cleanup_count = 0
+            
+            # 1. Mark expired sessions (older than timeout)
+            expired_sessions = self.search([
+                ('status', '=', 'active'),
+                ('login_time', '<', cutoff_time)
+            ])
+            
+            if expired_sessions:
+                expired_sessions.write({
+                    'status': 'expired',
+                    'logout_time': fields.Datetime.now(),
+                    'error_message': f'Session expired after {timeout_hours} hours of inactivity'
+                })
+                cleanup_count += len(expired_sessions)
+                _logger.info(f"Marked {len(expired_sessions)} sessions as expired")
+            
+            # 2. ENHANCED: Detect sessions that are likely browser-closed
+            stale_cutoff = current_time - timedelta(minutes=30)
+            stale_sessions = self.search([
+                ('status', '=', 'active'),
+                ('last_activity', '<', stale_cutoff),
+                ('login_time', '>', cutoff_time)  # Not expired yet, but stale
+            ])
+            
+            for session in stale_sessions:
+                # Check if user has newer active sessions
+                newer_sessions = self.search([
+                    ('user_id', '=', session.user_id.id),
+                    ('status', '=', 'active'),
+                    ('login_time', '>', session.login_time),
+                    ('id', '!=', session.id)
+                ])
+                
+                if newer_sessions:
+                    # User has newer session, mark this as browser closed
+                    session.write({
+                        'status': 'logged_out',
+                        'logout_time': fields.Datetime.now(),
+                        'browser_closed': True,
+                        'error_message': 'Session closed due to browser close (detected via new session)'
+                    })
+                    cleanup_count += 1
+                    _logger.info(f"Detected browser close for session {session.id}")
+            
+            _logger.info(f"Session cleanup completed: {cleanup_count} sessions processed")
+            return cleanup_count
+            
+        except Exception as e:
+            _logger.error(f"Failed to cleanup expired sessions: {e}")
+            return 0
     
 class AuditLoginAttempt(models.Model):
     """Track all login attempts for debugging"""
