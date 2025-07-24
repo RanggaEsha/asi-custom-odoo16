@@ -10,11 +10,10 @@
                 <tree string="User Sessions" 
                     decoration-success="status=='active'" 
                     decoration-muted="status in ['logged_out', 'expired', 'replaced']" 
-                    decoration-warning="status=='forced_logout'"
                     decoration-danger="status=='error'">
                     <field name="status" widget="badge" 
                         decoration-success="status=='active'"
-                        decoration-warning="status in ['expired', 'forced_logout']"
+                        decoration-warning="status=='expired'"
                         decoration-info="status in ['logged_out', 'replaced']"
                         decoration-danger="status=='error'"/>
                     <field name="user_id"/>
@@ -25,13 +24,9 @@
                     <field name="device_type"/>
                     <field name="browser"/>
                     <field name="os"/>
-                    <field name="country"/>
-                    <field name="city"/>
                     <field name="log_count"/>
                     <field name="last_activity"/>
-                    <field name="heartbeat_count"/>
                     <field name="browser_closed" widget="boolean_toggle"/>
-                    <field name="concurrent_sessions"/>
                     <button name="action_view_logs" type="object" icon="fa-list" 
                             title="View Activity Logs" class="btn-link"/>
                     <button name="action_force_close" type="object" icon="fa-times-circle" 
@@ -50,11 +45,12 @@
                 <form string="User Session">
                     <header>
                         <field name="status" widget="statusbar" 
-                            statusbar_visible="active,logged_out,expired,forced_logout,replaced,error"/>
-                        <button name="action_force_close" type="object" icon="fa-times-circle" 
-                            title="Force Close Session" class="btn-link text-danger"
+                            statusbar_visible="active,logged_out,expired,replaced,error"/>
+                        <button name="action_force_close" type="object" 
+                            string="Force Close" class="btn-danger"
                             groups="peepl_audit_session.group_audit_manager"
-                            attrs="{'invisible': [('status', '!=', 'active')]}"/>
+                            attrs="{'invisible': [('status', '!=', 'active')]}"
+                            confirm="Are you sure you want to force close this session?"/>
                     </header>
                     <sheet>
                         <div class="oe_button_box" name="button_box">
@@ -69,19 +65,11 @@
                             <div class="alert alert-success" role="alert" 
                                 attrs="{'invisible': [('status', '!=', 'active')]}">
                                 <strong>Active Session</strong> - User is currently logged in
-                                <span attrs="{'invisible': [('heartbeat_count', '=', 0)]}">
-                                    (Last heartbeat: <field name="last_activity" readonly="1"/> - <field name="heartbeat_count" readonly="1"/> heartbeats)
-                                </span>
                             </div>
                             
                             <div class="alert alert-warning" role="alert" 
                                 attrs="{'invisible': [('browser_closed', '!=', True)]}">
                                 <strong>Browser Close Detected</strong> - This session was closed due to browser/tab closure
-                            </div>
-                            
-                            <div class="alert alert-info" role="alert" 
-                                attrs="{'invisible': [('concurrent_sessions', '=', 0)]}">
-                                <strong>Concurrent Sessions</strong> - This user had <field name="concurrent_sessions" readonly="1"/> other active sessions
                             </div>
                         </div>
                         
@@ -93,32 +81,18 @@
                                 <field name="logout_time"/>
                                 <field name="duration" widget="float_time"/>
                                 <field name="last_activity"/>
-                                <field name="heartbeat_count"/>
                                 <field name="browser_closed"/>
-                                <field name="concurrent_sessions"/>
                             </group>
                             <group string="Technical Info">
                                 <field name="ip_address"/>
-                                <field name="device_name"/>
                                 <field name="device_type"/>
                                 <field name="browser"/>
                                 <field name="os"/>
                             </group>
                         </group>
                         
-                        <group string="Location Info">
-                            <group>
-                                <field name="country"/>
-                                <field name="city"/>
-                            </group>
-                            <group>
-                                <field name="latitude"/>
-                                <field name="longitude"/>
-                            </group>
-                        </group>
-                        
                         <group string="Additional Info" attrs="{'invisible': [('error_message', '=', False)]}">
-                            <field name="error_message"/>
+                            <field name="error_message" widget="text"/>
                         </group>
                         
                         <notebook>
@@ -140,11 +114,6 @@
                                     </tree>
                                 </field>
                             </page>
-                            <page string="Technical Details">
-                                <group>
-                                    <field name="user_agent" widget="text"/>
-                                </group>
-                            </page>
                         </notebook>
                     </sheet>
                 </form>
@@ -159,8 +128,6 @@
                 <search string="User Sessions">
                     <field name="user_id"/>
                     <field name="ip_address"/>
-                    <field name="country"/>
-                    <field name="city"/>
                     <field name="device_type"/>
                     <field name="browser"/>
                     <field name="os"/>
@@ -168,15 +135,8 @@
                     <filter string="Logged Out" name="logged_out" domain="[('status', '=', 'logged_out')]"/>
                     <filter string="Expired" name="expired" domain="[('status', '=', 'expired')]"/>
                     <filter string="Replaced Sessions" name="replaced" domain="[('status', '=', 'replaced')]"/>
-                    <filter string="Forced Logout" name="forced_logout" domain="[('status', '=', 'forced_logout')]"/>
                     <filter string="Error Sessions" name="error" domain="[('status', '=', 'error')]"/>
-                    <filter string="Forced Logout" name="forced_logout" domain="[('status', '=', 'forced_logout')]"/>
                     <filter string="Browser Closed" name="browser_closed" domain="[('browser_closed', '=', True)]"/>
-                    <separator/>
-                    <filter string="Recent Activity (1h)" name="recent_activity" 
-                            domain="[('last_activity', '>=', (datetime.datetime.now() - datetime.timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S'))]"/>
-                    <filter string="Stale Sessions" name="stale_sessions" 
-                            domain="[('status', '=', 'active'), ('last_activity', '&lt;', (datetime.datetime.now() - datetime.timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S'))]"/>
                     <separator/>
                     <filter string="Today" name="today" domain="[('login_time', '&gt;=', datetime.datetime.combine(context_today(), datetime.time(0,0,0)))]"/>
                     <filter string="This Week" name="this_week" domain="[('login_time', '&gt;=', (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
@@ -189,10 +149,8 @@
                         <filter string="User" name="group_by_user" context="{'group_by': 'user_id'}"/>
                         <filter string="Status" name="group_by_status" context="{'group_by': 'status'}"/>
                         <filter string="Device Type" name="group_by_device" context="{'group_by': 'device_type'}"/>
-                        <filter string="Country" name="group_by_country" context="{'group_by': 'country'}"/>
                         <filter string="Login Date" name="group_by_date" context="{'group_by': 'login_time:day'}"/>
                         <filter string="Browser Closed" name="group_by_browser_closed" context="{'group_by': 'browser_closed'}"/>
-                        <filter string="Last Activity" name="group_by_last_activity" context="{'group_by': 'last_activity:day'}"/>
                     </group>
                 </search>
             </field>
@@ -209,7 +167,6 @@
                     <field name="status"/>
                     <field name="ip_address"/>
                     <field name="device_type"/>
-                    <field name="country"/>
                     <field name="log_count"/>
                     <templates>
                         <t t-name="kanban-box">
@@ -226,7 +183,7 @@
                                 </div>
                                 <div class="o_kanban_record_body">
                                     <div><i class="fa fa-clock-o"/> <t t-esc="record.login_time.value"/></div>
-                                    <div><i class="fa fa-globe"/> <t t-esc="record.ip_address.value"/> - <t t-esc="record.country.value"/></div>
+                                    <div><i class="fa fa-globe"/> <t t-esc="record.ip_address.value"/></div>
                                     <div><i class="fa fa-desktop"/> <t t-esc="record.device_type.value"/></div>
                                     <div><i class="fa fa-list"/> <t t-esc="record.log_count.value"/> activities</div>
                                 </div>
@@ -249,7 +206,7 @@
                 </p>
                 <p>
                     User sessions are automatically created when users log in.
-                    Sessions track login time, device info, location, and user activities.
+                    Sessions track login time, device info, and user activities.
                 </p>
             </field>
         </record>

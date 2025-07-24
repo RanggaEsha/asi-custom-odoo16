@@ -329,7 +329,7 @@ class AuditConfigObject(models.Model):
 
 
 class AuditSession(models.Model):
-    """Audit Session Model"""
+    """Simplified Audit Session Model"""
     _name = 'audit.session'
     _description = 'User Audit Session'
     _order = 'login_time desc'
@@ -342,49 +342,35 @@ class AuditSession(models.Model):
     login_time = fields.Datetime('Login Time', default=fields.Datetime.now, required=True)
     logout_time = fields.Datetime('Logout Time')
     duration = fields.Float('Duration (Hours)', compute='_compute_duration', store=True)
+    last_activity = fields.Datetime('Last Activity', default=fields.Datetime.now)
     
     # Technical Info
     ip_address = fields.Char('IP Address')
-    user_agent = fields.Text('User Agent')
-    device_name = fields.Char('Device Name')
     device_type = fields.Selection([
         ('desktop', 'Desktop'),
         ('mobile', 'Mobile'), 
         ('tablet', 'Tablet'),
         ('unknown', 'Unknown')
-    ], 'Device Type')
+    ], 'Device Type', default='unknown')
     browser = fields.Char('Browser')
     os = fields.Char('Operating System')
     
-    # Location
-    country = fields.Char('Country')
-    city = fields.Char('City')
-    latitude = fields.Float('Latitude')
-    longitude = fields.Float('Longitude')
-
-    last_activity = fields.Datetime('Last Activity', default=fields.Datetime.now)
-    heartbeat_count = fields.Integer('Heartbeat Count', default=0)
-    browser_closed = fields.Boolean('Browser Closed Detected', default=False)
-    concurrent_sessions = fields.Integer('Concurrent Sessions', 
-                                       help="Number of concurrent sessions detected for this user")
-    
-    # UPDATED: Status with new 'replaced' option
+    # Status
     status = fields.Selection([
         ('active', 'Active'),
-        ('expired', 'Expired'),
         ('logged_out', 'Logged Out'),
-        ('forced_logout', 'Forced Logout'),
-        ('replaced', 'Replaced'),  # NEW: For sessions replaced by new logins
+        ('expired', 'Expired'),
+        ('replaced', 'Replaced'),
         ('error', 'Error')
     ], 'Status', default='active', required=True)
     
+    browser_closed = fields.Boolean('Browser Closed', default=False)
     error_message = fields.Text('Error Message')
     
     # Relations
     log_entry_ids = fields.One2many('audit.log.entry', 'session_id', 'Log Entries')
     log_count = fields.Integer('Log Count', compute='_compute_log_count')
 
-    # Rest of the methods remain the same...
     @api.depends('user_id', 'login_time')
     def _compute_name(self):
         for record in self:
@@ -408,9 +394,9 @@ class AuditSession(models.Model):
             record.log_count = len(record.log_entry_ids)
 
     def action_view_logs(self):
-        """Smart button action to view session logs"""
+        """View session logs"""
         return {
-            'name': _('Session Activity Logs'),
+            'name': 'Session Activity Logs',
             'type': 'ir.actions.act_window',
             'res_model': 'audit.log.entry',
             'view_mode': 'tree,form',
@@ -418,262 +404,19 @@ class AuditSession(models.Model):
             'context': {'default_session_id': self.id}
         }
 
-
-    @api.model
-    def extract_request_info(self, request_obj=None):
-        """Extract comprehensive request information including device details"""
-        info = {
-            'ip_address': 'unknown',
-            'user_agent': '',
-            'device_name': '',
-            'device_type': 'unknown',
-            'browser': 'Unknown',
-            'os': 'Unknown',
-            'country': None,
-            'city': None,
-            'latitude': None,
-            'longitude': None
-        }
-        
-        try:
-            if not request_obj:
-                # Try to get from current request context
-                from odoo.http import request
-                request_obj = request
-                
-            if request_obj and hasattr(request_obj, 'httprequest'):
-                # Extract basic request info
-                info['ip_address'] = getattr(request_obj.httprequest, 'remote_addr', 'unknown')
-                headers = getattr(request_obj.httprequest, 'headers', {})
-                info['user_agent'] = headers.get('User-Agent', '') if headers else ''
-                
-                # Parse user agent for device information
-                if info['user_agent']:
-                    device_info = self.parse_user_agent(info['user_agent'])
-                    info.update(device_info)
-                
-                # Get location information (if IP is available and not local)
-                if info['ip_address'] and info['ip_address'] not in ['127.0.0.1', 'localhost', 'unknown']:
-                    location_info = self.get_location_from_ip(info['ip_address'])
-                    info.update(location_info)
-                    
-        except Exception as e:
-            _logger.warning(f"Failed to extract request info: {e}")
-            
-        return info
-
-    def parse_user_agent(self, user_agent_string):
-        """Enhanced user agent parsing with fallbacks"""
-        if not user_agent_string:
-            return {
-                'browser': 'Unknown',
-                'os': 'Unknown', 
-                'device_name': '',
-                'device_type': 'unknown'
-            }
-            
-        try:
-            # Try to import user_agents library
-            from user_agents import parse
-            ua = parse(user_agent_string)
-            
-            return {
-                'browser': f"{ua.browser.family} {ua.browser.version_string}".strip(),
-                'os': f"{ua.os.family} {ua.os.version_string}".strip(),
-                'device_name': ua.device.family if ua.device.family != 'Other' else '',
-                'device_type': 'mobile' if ua.is_mobile else 'tablet' if ua.is_tablet else 'desktop'
-            }
-            
-        except ImportError:
-            _logger.warning("user_agents library not available, using basic parsing")
-            # Fallback to basic parsing
-            return self._basic_user_agent_parse(user_agent_string)
-        except Exception as e:
-            _logger.warning(f"Failed to parse user agent '{user_agent_string}': {e}")
-            return self._basic_user_agent_parse(user_agent_string)
-
-    def _basic_user_agent_parse(self, user_agent_string):
-        """Basic user agent parsing fallback"""
-        ua_lower = user_agent_string.lower()
-        
-        # Detect browser
-        browser = 'Unknown'
-        if 'chrome' in ua_lower:
-            browser = 'Chrome'
-        elif 'firefox' in ua_lower:
-            browser = 'Firefox'
-        elif 'safari' in ua_lower and 'chrome' not in ua_lower:
-            browser = 'Safari'
-        elif 'edge' in ua_lower:
-            browser = 'Edge'
-        elif 'opera' in ua_lower:
-            browser = 'Opera'
-        
-        # Detect OS
-        os_name = 'Unknown'
-        if 'windows' in ua_lower:
-            os_name = 'Windows'
-        elif 'mac' in ua_lower or 'osx' in ua_lower:
-            os_name = 'macOS'
-        elif 'linux' in ua_lower:
-            os_name = 'Linux'
-        elif 'android' in ua_lower:
-            os_name = 'Android'
-        elif 'ios' in ua_lower or 'iphone' in ua_lower or 'ipad' in ua_lower:
-            os_name = 'iOS'
-        
-        # Detect device type
-        device_type = 'desktop'
-        if any(mobile in ua_lower for mobile in ['mobile', 'android', 'iphone']):
-            device_type = 'mobile'
-        elif any(tablet in ua_lower for tablet in ['tablet', 'ipad']):
-            device_type = 'tablet'
-        
-        return {
-            'browser': browser,
-            'os': os_name,
-            'device_name': '',
-            'device_type': device_type
-        }
-
-    def get_location_from_ip(self, ip_address):
-        """Enhanced IP geolocation with multiple fallbacks"""
-        if not ip_address or ip_address in ['127.0.0.1', 'localhost', 'unknown']:
-            return {}
-            
-        try:
-            # Try primary service (ip-api.com)
-            import requests
-            response = requests.get(f'http://ip-api.com/json/{ip_address}', timeout=3)
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('status') == 'success':
-                    return {
-                        'country': data.get('country'),
-                        'city': data.get('city'),
-                        'latitude': data.get('lat'),
-                        'longitude': data.get('lon')
-                    }
-        except Exception as e:
-            _logger.debug(f"Primary geolocation service failed for {ip_address}: {e}")
-            
-        try:
-            # Fallback service (ipinfo.io)
-            response = requests.get(f'http://ipinfo.io/{ip_address}/json', timeout=3)
-            if response.status_code == 200:
-                data = response.json()
-                location = data.get('loc', '').split(',')
-                return {
-                    'country': data.get('country'),
-                    'city': data.get('city'),
-                    'latitude': float(location[0]) if len(location) >= 2 else None,
-                    'longitude': float(location[1]) if len(location) >= 2 else None
-                }
-        except Exception as e:
-            _logger.debug(f"Fallback geolocation service failed for {ip_address}: {e}")
-            
-        return {}
-
-    @api.model
-    def create_session(self, user_id, session_id, request_obj=None):
-        """ENHANCED: Create session with comprehensive device information"""
-        try:
-            # Skip during module installation
-            if self.env.context.get('module') or self.env.context.get('install_mode'):
-                return None
-            
-            # Check if audit tables exist
-            self.env.cr.execute("SELECT 1 FROM information_schema.tables WHERE table_name = 'audit_session' LIMIT 1")
-            if not self.env.cr.fetchone():
-                return None
-        
-            _logger.info(f"CREATE_SESSION - Creating session for user {user_id} with session_id {session_id}")
-            
-            # Check if session already exists
-            existing_session = self.sudo().search([
-                ('session_id', '=', session_id),
-                ('user_id', '=', user_id)
-            ], limit=1)
-            
-            if existing_session:
-                _logger.info(f"CREATE_SESSION - Updating existing session {existing_session.id}")
-                
-                # Extract fresh request info for the update
-                request_info = self.extract_request_info(request_obj)
-                
-                existing_session.sudo().write({
-                    'login_time': fields.Datetime.now(),
-                    'status': 'active',
-                    'error_message': False,
-                    # Update technical info in case it changed
-                    'ip_address': request_info['ip_address'],
-                    'user_agent': request_info['user_agent'],
-                    'device_name': request_info['device_name'],
-                    'device_type': request_info['device_type'],
-                    'browser': request_info['browser'],
-                    'os': request_info['os'],
-                    'country': request_info['country'],
-                    'city': request_info['city'],
-                    'latitude': request_info['latitude'],
-                    'longitude': request_info['longitude'],
-                })
-                return existing_session
-            
-            # Extract comprehensive request information
-            request_info = self.extract_request_info(request_obj)
-            
-            # Create session values
-            values = {
-                'user_id': user_id,
-                'session_id': session_id,
-                'login_time': fields.Datetime.now(),
-                'status': 'active'
-            }
-            values.update(request_info)
-            
-            # Create the session
-            session = self.sudo().create(values)
-            _logger.info(f"CREATE_SESSION - Successfully created session {session.id} with device info: "
-                        f"Type={session.device_type}, Browser={session.browser}, OS={session.os}")
-            
-            # Immediate commit to ensure availability
-            self.env.cr.commit()
-            return session
-            
-        except Exception as e:
-            _logger.error(f"Failed to create audit session: {e}")
-            # Rollback to prevent database corruption
-            self.env.cr.rollback()
-            return None
-
-    def close_session(self):
-        """Close the session"""
-        try:
-            self.sudo().write({
-                'logout_time': fields.Datetime.now(),
-                'status': 'logged_out'
-            })
-            _logger.info(f"Closed audit session {self.id}")
-        except Exception as e:
-            _logger.error(f"Failed to close session {self.id}: {e}")
-
     @api.model
     def cleanup_expired_sessions(self):
-        """Enhanced cleanup with better session status detection (called by cron)"""
+        """Simple cleanup for expired sessions (called by cron)"""
         try:
             from datetime import datetime, timedelta
-            import logging
-            _logger = logging.getLogger(__name__)
             
-            # Get configuration
+            # Get timeout from config (default 24 hours)
             config = self.env['audit.config'].search([('active', '=', True)], limit=1)
             timeout_hours = config.session_timeout_hours if config else 24
             
-            current_time = datetime.now()
-            cutoff_time = current_time - timedelta(hours=timeout_hours)
-            cleanup_count = 0
+            cutoff_time = datetime.now() - timedelta(hours=timeout_hours)
             
-            # 1. Mark expired sessions (older than timeout)
+            # Mark old active sessions as expired
             expired_sessions = self.search([
                 ('status', '=', 'active'),
                 ('login_time', '<', cutoff_time)
@@ -683,87 +426,26 @@ class AuditSession(models.Model):
                 expired_sessions.write({
                     'status': 'expired',
                     'logout_time': fields.Datetime.now(),
-                    'error_message': f'Session expired after {timeout_hours} hours of inactivity'
+                    'error_message': f'Session expired after {timeout_hours} hours'
                 })
-                cleanup_count += len(expired_sessions)
-                _logger.info(f"Marked {len(expired_sessions)} sessions as expired")
+                _logger.info(f"Expired {len(expired_sessions)} old sessions")
             
-            # 2. ENHANCED: Detect sessions that are likely browser-closed
-            stale_cutoff = current_time - timedelta(minutes=30)
-            stale_sessions = self.search([
-                ('status', '=', 'active'),
-                ('last_activity', '<', stale_cutoff),
-                ('login_time', '>', cutoff_time)  # Not expired yet, but stale
-            ])
-            
-            for session in stale_sessions:
-                # Check if user has newer active sessions
-                newer_sessions = self.search([
-                    ('user_id', '=', session.user_id.id),
-                    ('status', '=', 'active'),
-                    ('login_time', '>', session.login_time),
-                    ('id', '!=', session.id)
-                ])
-                
-                if newer_sessions:
-                    # User has newer session, mark this as browser closed
-                    session.write({
-                        'status': 'logged_out',
-                        'logout_time': fields.Datetime.now(),
-                        'browser_closed': True,
-                        'error_message': 'Session closed due to browser close (detected via new session)'
-                    })
-                    cleanup_count += 1
-                    _logger.info(f"Detected browser close for session {session.id}")
-            
-            # 3. Clean up very old sessions (optional, for database maintenance)
-            very_old_cutoff = current_time - timedelta(days=90)  # Keep 90 days
-            very_old_sessions = self.search([
-                ('login_time', '<', very_old_cutoff),
-                ('status', 'in', ['logged_out', 'expired'])
-            ])
-            
-            if len(very_old_sessions) > 1000:  # Only if too many old records
-                # Delete oldest first, keep some for historical data
-                to_delete = very_old_sessions.sorted('login_time')[:500]
-                deleted_count = len(to_delete)
-                to_delete.unlink()
-                _logger.info(f"Deleted {deleted_count} very old session records")
-            
-            # 4. Heartbeat-based cleanup
-            if hasattr(self, 'last_activity'):  # Check if enhanced fields exist
-                heartbeat_cutoff = current_time - timedelta(hours=1)
-                stale_heartbeat_sessions = self.search([
-                    ('status', '=', 'active'),
-                    ('last_activity', '<', heartbeat_cutoff),
-                    ('heartbeat_count', '>', 0)  # Had heartbeats before
-                ])
-                
-                heartbeat_cleanup_count = 0
-                for session in stale_heartbeat_sessions:
-                    # Check if this is really a browser close vs network issue
-                    time_since_activity = current_time - session.last_activity
-                    
-                    if time_since_activity.total_seconds() > 3600:  # 1 hour
-                        session.write({
-                            'status': 'logged_out',
-                            'logout_time': fields.Datetime.now(),
-                            'browser_closed': True,
-                            'error_message': f'No heartbeat for {int(time_since_activity.total_seconds()/60)} minutes'
-                        })
-                        heartbeat_cleanup_count += 1
-                
-                if heartbeat_cleanup_count > 0:
-                    _logger.info(f"Heartbeat cleanup: closed {heartbeat_cleanup_count} stale sessions")
-                    cleanup_count += heartbeat_cleanup_count
-            
-            _logger.info(f"Session cleanup completed: {cleanup_count} sessions processed")
-            return cleanup_count
+            return len(expired_sessions)
             
         except Exception as e:
-            _logger.error(f"Failed to cleanup expired sessions: {e}")
+            _logger.error(f"Failed to cleanup sessions: {e}")
             return 0
 
+    def action_force_close(self):
+        """Force close session"""
+        for session in self:
+            if session.status == 'active':
+                session.write({
+                    'status': 'logged_out',
+                    'logout_time': fields.Datetime.now(),
+                    'error_message': f'Manually closed by {self.env.user.name}'
+                })
+        return True
 
 class AuditLogEntry(models.Model):
     """Audit Log Entry Model"""

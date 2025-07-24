@@ -39,8 +39,8 @@
                                                 <td><t t-esc="current_session.device_type"/> - <t t-esc="current_session.browser"/></td>
                                             </tr>
                                             <tr>
-                                                <td><strong>Location:</strong></td>
-                                                <td><t t-esc="current_session.city"/>, <t t-esc="current_session.country"/></td>
+                                                <td><strong>OS:</strong></td>
+                                                <td><t t-esc="current_session.os"/></td>
                                             </tr>
                                             <tr>
                                                 <td><strong>Activities:</strong></td>
@@ -103,7 +103,7 @@
                                                         <th>Logout Time</th>
                                                         <th>Duration</th>
                                                         <th>Device</th>
-                                                        <th>Location</th>
+                                                        <th>IP Address</th>
                                                         <th>Activities</th>
                                                     </tr>
                                                 </thead>
@@ -123,7 +123,7 @@
                                                                 <t t-else="">-</t>
                                                             </td>
                                                             <td><t t-esc="session.device_type"/> - <t t-esc="session.browser"/></td>
-                                                            <td><t t-esc="session.city"/>, <t t-esc="session.country"/></td>
+                                                            <td><t t-esc="session.ip_address"/></td>
                                                             <td><t t-esc="session.log_count"/></td>
                                                         </tr>
                                                     </t>

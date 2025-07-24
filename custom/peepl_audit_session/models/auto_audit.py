@@ -146,19 +146,20 @@ class BaseModelOptimized(models.AbstractModel):
         return result
 
     def _get_current_session_id(self):
-        """ENHANCED: Get current session ID with better session creation and tracking"""
+        """FIXED: Get current session ID with better session detection and creation"""
         try:
+            # Check if we have request context
             if not request or not hasattr(request, 'session'):
-                _logger.debug("No request or session context available")
+                _logger.debug("AUDIT_SESSION - No request or session context available")
                 return None
                 
             session_sid = getattr(request.session, 'sid', None)
             user_id = self.env.user.id
             
-            _logger.debug(f"SESSION LOOKUP - SID: {session_sid}, User ID: {user_id}")
+            _logger.debug(f"AUDIT_SESSION - Looking for session: SID={session_sid}, User={user_id}")
             
             if not session_sid or not user_id:
-                _logger.warning(f"Missing session_sid ({session_sid}) or user_id ({user_id})")
+                _logger.warning(f"AUDIT_SESSION - Missing SID ({session_sid}) or user_id ({user_id})")
                 return None
             
             # STEP 1: Look for exact match (preferred)
@@ -169,86 +170,64 @@ class BaseModelOptimized(models.AbstractModel):
             ], limit=1)
             
             if session:
-                _logger.debug(f"SESSION FOUND - Exact match: {session.id}")
+                _logger.debug(f"AUDIT_SESSION - Found exact match: {session.id}")
+                # Update last activity
+                try:
+                    session.sudo().write({'last_activity': fields.Datetime.now()})
+                except:
+                    pass  # Don't fail if update fails
                 return session.id
             
-            # STEP 2: Look for any session with this session ID (regardless of user)
-            # This handles cases where session was created but user ID doesn't match
-            any_session_same_sid = self.env['audit.session'].sudo().search([
-                ('session_id', '=', session_sid),
-                ('status', '=', 'active')
-            ], limit=1)
-            
-            if any_session_same_sid:
-                _logger.warning(f"SESSION FOUND - Different user: session user={any_session_same_sid.user_id.id}, current user={user_id}")
-                # Update the session to current user if needed
-                if any_session_same_sid.user_id.id != user_id:
-                    try:
-                        any_session_same_sid.sudo().write({'user_id': user_id})
-                        _logger.info(f"SESSION UPDATED - Fixed user ID for session {any_session_same_sid.id}")
-                    except Exception as e:
-                        _logger.warning(f"Failed to update session user: {e}")
-                return any_session_same_sid.id
-            
-            # STEP 3: Look for any active session for this user (session ID might have changed)
+            # STEP 2: Look for any active session for this user
             user_sessions = self.env['audit.session'].sudo().search([
                 ('user_id', '=', user_id),
                 ('status', '=', 'active')
             ])
             
-            _logger.info(f"SESSION CHECK - Found {len(user_sessions)} active sessions for user {user_id}")
+            _logger.info(f"AUDIT_SESSION - Found {len(user_sessions)} active sessions for user {user_id}")
             
             if user_sessions:
-                # Use the most recent active session and update its session ID
+                # Use the most recent one and update its session ID
                 latest_session = user_sessions.sorted('login_time', reverse=True)[0]
-                _logger.info(f"SESSION REUSE - Using latest session {latest_session.id} (SID: {latest_session.session_id} -> {session_sid})")
+                _logger.info(f"AUDIT_SESSION - Using latest session {latest_session.id}, updating SID to {session_sid}")
                 
-                # Update the session SID to current one
                 try:
                     latest_session.sudo().write({
                         'session_id': session_sid,
                         'last_activity': fields.Datetime.now()
                     })
-                    self.env.cr.commit()
-                    _logger.info(f"SESSION UPDATED - Updated SID for session {latest_session.id}")
+                    return latest_session.id
                 except Exception as e:
-                    _logger.warning(f"Failed to update session SID: {e}")
-                    
-                return latest_session.id
+                    _logger.warning(f"AUDIT_SESSION - Failed to update session SID: {e}")
+                    return latest_session.id
             
-            # STEP 4: EMERGENCY - Create session with comprehensive info
-            _logger.warning(f"EMERGENCY SESSION - Creating for user {user_id}, SID {session_sid}")
+            # STEP 3: Create emergency session if none found
+            _logger.warning(f"AUDIT_SESSION - No active session found, creating emergency session for user {user_id}")
             
             try:
-                # Use the same device extraction method as regular session creation
-                session_model = self.env['audit.session']
-                request_info = session_model.extract_request_info()
-                
-                session_values = {
+                emergency_session = self.env['audit.session'].sudo().create({
                     'user_id': user_id,
                     'session_id': session_sid,
                     'login_time': fields.Datetime.now(),
                     'last_activity': fields.Datetime.now(),
                     'status': 'active',
-                    'heartbeat_count': 0,
+                    'device_type': 'unknown',
+                    'browser': 'Unknown',
+                    'os': 'Unknown',
+                    'ip_address': 'unknown',
                     'browser_closed': False,
-                    'error_message': 'Emergency session created during action (login hook may have failed)'
-                }
-                session_values.update(request_info)
+                    'error_message': 'Emergency session created during CRUD operation'
+                })
                 
-                emergency_session = self.env['audit.session'].sudo().create(session_values)
-                
-                # Commit immediately to ensure availability
-                self.env.cr.commit()
-                _logger.warning(f"EMERGENCY SESSION CREATED - {emergency_session.id}")
+                _logger.warning(f"AUDIT_SESSION - Created emergency session {emergency_session.id}")
                 return emergency_session.id
                 
             except Exception as e:
-                _logger.error(f"EMERGENCY SESSION FAILED - {e}")
+                _logger.error(f"AUDIT_SESSION - Failed to create emergency session: {e}")
                 return None
                 
         except Exception as e:
-            _logger.error(f"CRITICAL SESSION ERROR - {e}")
+            _logger.error(f"AUDIT_SESSION - Critical error: {e}")
             return None
 
     # Rest of the methods remain the same but with enhanced logging
