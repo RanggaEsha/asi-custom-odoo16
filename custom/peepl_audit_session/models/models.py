@@ -199,6 +199,38 @@ class AuditConfig(models.Model):
                 
         return result
 
+    def cleanup_old_logs(self):
+        """Cleanup old audit logs based on configuration (called by cron)"""
+        try:
+            from datetime import datetime, timedelta
+            import logging
+            _logger = logging.getLogger(__name__)
+            
+            total_deleted = 0
+            configs = self.search([('active', '=', True), ('auto_cleanup_days', '>', 0)])
+            
+            for config in configs:
+                if config.auto_cleanup_days > 0:
+                    cutoff_date = datetime.now() - timedelta(days=config.auto_cleanup_days)
+                    old_logs = self.env['audit.log.entry'].search([
+                        ('action_date', '<', cutoff_date)
+                    ])
+                    
+                    if old_logs:
+                        count = len(old_logs)
+                        old_logs.unlink()
+                        total_deleted += count
+                        _logger.info(f"Config '{config.name}': Cleaned up {count} old audit logs (older than {config.auto_cleanup_days} days)")
+            
+            if total_deleted > 0:
+                _logger.info(f"Total audit log cleanup: {total_deleted} logs deleted")
+            
+            return total_deleted
+            
+        except Exception as e:
+            _logger.error(f"Failed to cleanup old logs: {e}")
+            return 0
+
 
 class AuditConfigUser(models.Model):
     """Audit Configuration Users"""
@@ -329,6 +361,12 @@ class AuditSession(models.Model):
     city = fields.Char('City')
     latitude = fields.Float('Latitude')
     longitude = fields.Float('Longitude')
+
+    last_activity = fields.Datetime('Last Activity', default=fields.Datetime.now)
+    heartbeat_count = fields.Integer('Heartbeat Count', default=0)
+    browser_closed = fields.Boolean('Browser Closed Detected', default=False)
+    concurrent_sessions = fields.Integer('Concurrent Sessions', 
+                                       help="Number of concurrent sessions detected for this user")
     
     # Status
     status = fields.Selection([
@@ -619,26 +657,107 @@ class AuditSession(models.Model):
 
     @api.model
     def cleanup_expired_sessions(self):
-        """Cleanup expired sessions (called by cron)"""
+        """Enhanced cleanup with better session status detection (called by cron)"""
         try:
-            timeout_hours = 24  # Default timeout
+            from datetime import datetime, timedelta
+            import logging
+            _logger = logging.getLogger(__name__)
             
-            # Get timeout from configuration
+            # Get configuration
             config = self.env['audit.config'].search([('active', '=', True)], limit=1)
-            if config and config.session_timeout_hours:
-                timeout_hours = config.session_timeout_hours
-                
-            cutoff_time = datetime.now() - timedelta(hours=timeout_hours)
+            timeout_hours = config.session_timeout_hours if config else 24
+            
+            current_time = datetime.now()
+            cutoff_time = current_time - timedelta(hours=timeout_hours)
+            cleanup_count = 0
+            
+            # 1. Mark expired sessions (older than timeout)
             expired_sessions = self.search([
                 ('status', '=', 'active'),
                 ('login_time', '<', cutoff_time)
             ])
             
             if expired_sessions:
-                expired_sessions.write({'status': 'expired'})
+                expired_sessions.write({
+                    'status': 'expired',
+                    'logout_time': fields.Datetime.now(),
+                    'error_message': f'Session expired after {timeout_hours} hours of inactivity'
+                })
+                cleanup_count += len(expired_sessions)
                 _logger.info(f"Marked {len(expired_sessions)} sessions as expired")
+            
+            # 2. ENHANCED: Detect sessions that are likely browser-closed
+            stale_cutoff = current_time - timedelta(minutes=30)
+            stale_sessions = self.search([
+                ('status', '=', 'active'),
+                ('last_activity', '<', stale_cutoff),
+                ('login_time', '>', cutoff_time)  # Not expired yet, but stale
+            ])
+            
+            for session in stale_sessions:
+                # Check if user has newer active sessions
+                newer_sessions = self.search([
+                    ('user_id', '=', session.user_id.id),
+                    ('status', '=', 'active'),
+                    ('login_time', '>', session.login_time),
+                    ('id', '!=', session.id)
+                ])
                 
-            return len(expired_sessions)
+                if newer_sessions:
+                    # User has newer session, mark this as browser closed
+                    session.write({
+                        'status': 'logged_out',
+                        'logout_time': fields.Datetime.now(),
+                        'browser_closed': True,
+                        'error_message': 'Session closed due to browser close (detected via new session)'
+                    })
+                    cleanup_count += 1
+                    _logger.info(f"Detected browser close for session {session.id}")
+            
+            # 3. Clean up very old sessions (optional, for database maintenance)
+            very_old_cutoff = current_time - timedelta(days=90)  # Keep 90 days
+            very_old_sessions = self.search([
+                ('login_time', '<', very_old_cutoff),
+                ('status', 'in', ['logged_out', 'expired'])
+            ])
+            
+            if len(very_old_sessions) > 1000:  # Only if too many old records
+                # Delete oldest first, keep some for historical data
+                to_delete = very_old_sessions.sorted('login_time')[:500]
+                deleted_count = len(to_delete)
+                to_delete.unlink()
+                _logger.info(f"Deleted {deleted_count} very old session records")
+            
+            # 4. Heartbeat-based cleanup
+            if hasattr(self, 'last_activity'):  # Check if enhanced fields exist
+                heartbeat_cutoff = current_time - timedelta(hours=1)
+                stale_heartbeat_sessions = self.search([
+                    ('status', '=', 'active'),
+                    ('last_activity', '<', heartbeat_cutoff),
+                    ('heartbeat_count', '>', 0)  # Had heartbeats before
+                ])
+                
+                heartbeat_cleanup_count = 0
+                for session in stale_heartbeat_sessions:
+                    # Check if this is really a browser close vs network issue
+                    time_since_activity = current_time - session.last_activity
+                    
+                    if time_since_activity.total_seconds() > 3600:  # 1 hour
+                        session.write({
+                            'status': 'logged_out',
+                            'logout_time': fields.Datetime.now(),
+                            'browser_closed': True,
+                            'error_message': f'No heartbeat for {int(time_since_activity.total_seconds()/60)} minutes'
+                        })
+                        heartbeat_cleanup_count += 1
+                
+                if heartbeat_cleanup_count > 0:
+                    _logger.info(f"Heartbeat cleanup: closed {heartbeat_cleanup_count} stale sessions")
+                    cleanup_count += heartbeat_cleanup_count
+            
+            _logger.info(f"Session cleanup completed: {cleanup_count} sessions processed")
+            return cleanup_count
+            
         except Exception as e:
             _logger.error(f"Failed to cleanup expired sessions: {e}")
             return 0
