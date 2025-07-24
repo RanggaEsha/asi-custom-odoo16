@@ -7,3 +7,4 @@ access_audit_log_entry_manager,audit.log.entry manager,model_audit_log_entry,gro
 access_audit_session_user,audit.session user,model_audit_session,group_audit_user,1,0,0,0
 access_audit_session_manager,audit.session manager,model_audit_session,group_audit_manager,1,1,1,1
 access_audit_clear_wizard_manager,audit.clear.wizard manager,model_audit_clear_wizard,group_audit_manager,1,1,1,1
+access_audit_login_attempt_manager,audit.login.attempt manager,model_audit_login_attempt,group_audit_manager,1,1,1,1

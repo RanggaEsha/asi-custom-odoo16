@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Login Attempt Tree View -->
+        <record id="audit_login_attempt_tree" model="ir.ui.view">
+            <field name="name">audit.login.attempt.tree</field>
+            <field name="model">audit.login.attempt</field>
+            <field name="arch" type="xml">
+                <tree string="Login Attempts" 
+                      decoration-success="success==True and session_created==True"
+                      decoration-warning="success==True and session_created==False"
+                      decoration-danger="success==False">
+                    <field name="attempt_time"/>
+                    <field name="login"/>
+                    <field name="user_id"/>
+                    <field name="success" widget="boolean_toggle"/>
+                    <field name="session_created" widget="boolean_toggle"/>
+                    <field name="session_id"/>
+                    <field name="ip_address"/>
+                    <field name="error_message"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Login Attempt Form View -->
+        <record id="audit_login_attempt_form" model="ir.ui.view">
+            <field name="name">audit.login.attempt.form</field>
+            <field name="model">audit.login.attempt</field>
+            <field name="arch" type="xml">
+                <form string="Login Attempt" create="false" edit="false">
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>Login Attempt</h1>
+                        </div>
+                        
+                        <group>
+                            <group string="Attempt Details">
+                                <field name="attempt_time"/>
+                                <field name="login"/>
+                                <field name="user_id"/>
+                                <field name="success"/>
+                                <field name="session_created"/>
+                                <field name="session_id"/>
+                            </group>
+                            <group string="Technical Info">
+                                <field name="ip_address"/>
+                                <field name="user_agent" widget="text"/>
+                            </group>
+                        </group>
+                        
+                        <group string="Error Details" attrs="{'invisible': [('error_message', '=', False)]}">
+                            <field name="error_message" widget="text" nolabel="1"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Login Attempt Search View -->
+        <record id="audit_login_attempt_search" model="ir.ui.view">
+            <field name="name">audit.login.attempt.search</field>
+            <field name="model">audit.login.attempt</field>
+            <field name="arch" type="xml">
+                <search string="Login Attempts">
+                    <field name="login"/>
+                    <field name="user_id"/>
+                    <field name="ip_address"/>
+                    <filter string="Successful" name="success" domain="[('success', '=', True)]"/>
+                    <filter string="Failed" name="failed" domain="[('success', '=', False)]"/>
+                    <filter string="Session Created" name="session_created" domain="[('session_created', '=', True)]"/>
+                    <filter string="Session NOT Created" name="session_not_created" domain="[('session_created', '=', False)]"/>
+                    <separator/>
+                    <filter string="Today" name="today" domain="[('attempt_time', '&gt;=', datetime.datetime.combine(context_today(), datetime.time(0,0,0)))]"/>
+                    <filter string="This Week" name="this_week" domain="[('attempt_time', '&gt;=', (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                    <group expand="0" string="Group By">
+                        <filter string="User" name="group_by_user" context="{'group_by': 'user_id'}"/>
+                        <filter string="Success" name="group_by_success" context="{'group_by': 'success'}"/>
+                        <filter string="Session Created" name="group_by_session_created" context="{'group_by': 'session_created'}"/>
+                        <filter string="Date" name="group_by_date" context="{'group_by': 'attempt_time:day'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
+        <!-- Login Attempt Action -->
+        <record id="action_audit_login_attempt" model="ir.actions.act_window">
+            <field name="name">Login Attempts</field>
+            <field name="res_model">audit.login.attempt</field>
+            <field name="view_mode">tree,form</field>
+            <field name="context">{'search_default_today': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No login attempts recorded!
+                </p>
+                <p>
+                    Login attempts are automatically tracked to help debug session creation issues.
+                </p>
+            </field>
+        </record>
+
+
+        <!-- Debug Dashboard Action
+        <record id="action_audit_debug_dashboard" model="ir.actions.act_window">
+            <field name="name">Debug Dashboard</field>
+            <field name="res_model">audit.config</field>
+            <field name="view_mode">form</field>
+            <field name="view_id" ref="audit_debug_dashboard_form"/>
+            <field name="target">current</field>
+            <field name="context">{'form_view_initial_mode': 'readonly'}</field>
+        </record> -->
+
+        <!-- Add to main menu -->
+        <menuitem id="menu_audit_debug" 
+                  name="Debug Tools" 
+                  parent="menu_audit_root"
+                  groups="peepl_audit_session.group_audit_manager"
+                  sequence="50"/>
+
+        <menuitem id="menu_audit_login_attempts" 
+                  name="Login Attempts" 
+                  parent="menu_audit_debug"
+                  action="action_audit_login_attempt"
+                  groups="peepl_audit_session.group_audit_manager"
+                  sequence="10"/>
+
+        <!-- <menuitem id="menu_audit_debug_dashboard" 
+                  name="Debug Dashboard" 
+                  parent="menu_audit_debug"
+                  action="action_audit_debug_dashboard"
+                  groups="peepl_audit_session.group_audit_manager"
+                  sequence="20"/> -->
+
+    </data>
+</odoo>

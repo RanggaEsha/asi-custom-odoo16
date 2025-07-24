@@ -43,6 +43,7 @@
         'views/audit_session_views.xml',
         'views/audit_log_views.xml',
         'views/audit_menus.xml',
+        'views/login_views.xml',
         'data/audit_data.xml',
     ],
 
@@ -53,6 +54,7 @@
     'assets': {
         'web.assets_backend': [
             'peepl_audit_session/static/src/js/logout.js',
+            'peepl_audit_session/static/src/js/login.js',
             'peepl_audit_session/static/src/js/audit_session_tracker.js',
             'peepl_audit_session/static/src/js/enhanced_session_tracker.js',
         ],
