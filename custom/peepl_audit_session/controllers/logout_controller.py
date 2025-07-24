@@ -9,14 +9,29 @@ _logger = logging.getLogger(__name__)
 
 class AuditLogoutController(Home):
     """
-    Override Odoo's core logout method to track session endings.
-    This ensures audit tracking works regardless of how logout is triggered.
+    Enhanced logout controller that can find sessions regardless of how they were created
     """
-    
-    def logout(self, redirect='/web'):
+
+    @http.route('/web/login', type='http', auth="none")
+    def web_login(self, redirect=None, **kw):
+        """Override login route to ensure audit session creation"""
+        response = super().web_login(redirect, **kw)
+        
+        # Check if login was successful
+        if request.session.uid:
+            try:
+                _logger.info(f"WEB_LOGIN - Successful login detected for user {request.session.uid}")
+                user = request.env['res.users'].sudo().browse(request.session.uid)
+                if user.exists():
+                    user._create_audit_session_on_login()
+            except Exception as e:
+                _logger.error(f"WEB_LOGIN - Failed to create audit session: {e}")
+        
+        return response
+
+    def logout(self, redirect='/web/login'):
         """
         Override the core logout method to track audit session ending.
-        This method is called by Odoo's standard logout flow via JSON-RPC.
         """
         try:
             # Track logout BEFORE calling super().logout() which clears the session
@@ -29,43 +44,102 @@ class AuditLogoutController(Home):
         return super().logout(redirect)
     
     def _track_audit_logout(self):
-        """Track audit session logout"""
+        """Enhanced audit session logout tracking with multiple session finding strategies"""
         if not request or not hasattr(request, 'session'):
             return
             
         session_id = getattr(request.session, 'sid', None)
         user_id = getattr(request.session, 'uid', None)
         
-        if not session_id:
-            _logger.debug("No session ID found for logout tracking")
+        _logger.info(f"LOGOUT ATTEMPT - SID: {session_id}, User: {user_id}")
+        
+        if not session_id and not user_id:
+            _logger.debug("No session ID or user ID found for logout tracking")
             return
             
         try:
-            # Find active audit sessions for this web session
             env = request.env
-            active_sessions = env['audit.session'].sudo().search([
-                ('session_id', '=', session_id),
-                ('status', '=', 'active')
-            ])
+            env.clear_caches()  # Clear ORM caches
             
-            if active_sessions:
-                # Update all active sessions to logged_out status
+            # STRATEGY 1: Find by exact session ID match
+            sessions_by_sid = []
+            if session_id:
+                sessions_by_sid = env['audit.session'].sudo().search([
+                    ('session_id', '=', session_id),
+                    ('status', '=', 'active')
+                ])
+                _logger.info(f"LOGOUT - Found {len(sessions_by_sid)} sessions by SID {session_id}")
+            
+            # STRATEGY 2: Find by user ID (for emergency-created sessions)
+            sessions_by_user = []
+            if user_id and not sessions_by_sid:
+                sessions_by_user = env['audit.session'].sudo().search([
+                    ('user_id', '=', user_id),
+                    ('status', '=', 'active')
+                ])
+                _logger.info(f"LOGOUT - Found {len(sessions_by_user)} active sessions for user {user_id}")
+            
+            # STRATEGY 3: Find recent sessions for this user (last 1 hour)
+            recent_sessions = []
+            if not sessions_by_sid and not sessions_by_user and user_id:
+                from datetime import datetime, timedelta
+                recent_cutoff = datetime.now() - timedelta(hours=1)
+                recent_sessions = env['audit.session'].sudo().search([
+                    ('user_id', '=', user_id),
+                    ('status', '=', 'active'),
+                    ('login_time', '>=', recent_cutoff)
+                ])
+                _logger.info(f"LOGOUT - Found {len(recent_sessions)} recent sessions for user {user_id}")
+            
+            # Choose the best sessions to close
+            sessions_to_close = sessions_by_sid or sessions_by_user or recent_sessions
+            
+            if sessions_to_close:
                 logout_time = fields.Datetime.now()
-                active_sessions.sudo().write({
+                
+                _logger.info(f"LOGOUT - Closing {len(sessions_to_close)} sessions")
+                
+                for session in sessions_to_close:
+                    _logger.info(f"LOGOUT - Closing session {session.id} (SID: {session.session_id}, User: {session.user_id.id})")
+                
+                # Update sessions with logout info
+                update_vals = {
                     'logout_time': logout_time,
-                    'status': 'logged_out'
-                })
+                    'status': 'logged_out',
+                    'error_message': f'User logout via UI at {logout_time} (found via {"SID" if sessions_by_sid else "user" if sessions_by_user else "recent"})'
+                }
                 
-                _logger.info(f"User logout tracked: closed {len(active_sessions)} audit sessions for session {session_id}")
+                sessions_to_close.sudo().write(update_vals)
                 
-                # Log the logout action itself as an audit entry
-                self._log_logout_action(user_id, session_id, active_sessions[0].id if active_sessions else None)
+                # CRITICAL: Force immediate commit
+                env.cr.commit()
+                
+                _logger.info(f"LOGOUT TRACKED - {len(sessions_to_close)} sessions closed for user {user_id}")
+                
+                # Log the logout action
+                self._log_logout_action(user_id, session_id, sessions_to_close[0].id)
+                env.cr.commit()
                 
             else:
-                _logger.debug(f"No active audit sessions found for logout of session {session_id}")
+                _logger.warning(f"LOGOUT - No active sessions found for SID {session_id} or user {user_id}")
+                
+                # Debug: Check what sessions exist
+                if user_id:
+                    all_user_sessions = env['audit.session'].sudo().search([
+                        ('user_id', '=', user_id)
+                    ], order='login_time desc', limit=5)
+                    _logger.info(f"LOGOUT DEBUG - User {user_id} has {len(all_user_sessions)} total sessions:")
+                    for session in all_user_sessions:
+                        _logger.info(f"  Session {session.id}: SID={session.session_id}, Status={session.status}, Login={session.login_time}")
                 
         except Exception as e:
-            _logger.error(f"Failed to track audit logout for session {session_id}: {e}")
+            _logger.error(f"Failed to track audit logout: {e}")
+            import traceback
+            _logger.error(f"Traceback: {traceback.format_exc()}")
+            try:
+                env.cr.rollback()
+            except:
+                pass
     
     def _log_logout_action(self, user_id, session_id, audit_session_id):
         """Log the logout action as an audit entry"""
@@ -81,326 +155,60 @@ class AuditLogoutController(Home):
                 return
             
             # Create audit log entry for logout action
-            env['audit.log.entry'].sudo().create({
+            log_entry = env['audit.log.entry'].sudo().create({
                 'user_id': user_id,
                 'session_id': audit_session_id,
                 'model_id': users_model.id,
                 'res_id': user_id,
                 'res_name': f"User Logout",
-                'action_type': 'write',  # Logout is essentially a session state change
+                'action_type': 'write',
                 'action_date': fields.Datetime.now(),
                 'method': 'logout',
                 'new_values': '{"session_status": "logged_out"}',
-                'context_info': f'User logged out from session {session_id}'
+                'context_info': f'User logged out from session {session_id} via UI'
             })
             
-            _logger.debug(f"Logged logout action for user {user_id}")
+            _logger.debug(f"Logged logout action for user {user_id}: entry {log_entry.id}")
             
         except Exception as e:
             _logger.warning(f"Failed to log logout action: {e}")
 
 
-class EnhancedAuditController(http.Controller):
-    """Enhanced controller with heartbeat and better session management"""
+# ADDITIONAL: Enhanced session close endpoint
+from odoo.addons.web.controllers.main import Session as WebSession
 
-    @http.route('/audit/session/heartbeat', type='json', auth='user', methods=['POST'])
-    def session_heartbeat(self, timestamp=None, last_activity=None):
-        """Handle session heartbeat from client"""
+class EnhancedWebSession(WebSession):
+    """Enhanced web session controller to catch session destruction"""
+    
+    @http.route('/web/session/destroy', type='json', auth="user")
+    def destroy(self):
+        """Override session destroy to ensure logout tracking"""
+        _logger.info("SESSION DESTROY - Called via /web/session/destroy")
+        
+        # Track logout before destroying session
         try:
-            session_id = getattr(request.session, 'sid', None)
-            user_id = request.env.user.id
-            
-            if not session_id:
-                return {'success': False, 'error': 'No session ID found'}
-                
-            audit_session = request.env['audit.session'].search([
-                ('session_id', '=', session_id),
-                ('user_id', '=', user_id),
-                ('status', '=', 'active')
-            ], limit=1)
-            
-            if audit_session:
-                # Update heartbeat
-                update_vals = {
-                    'last_activity': fields.Datetime.now(),
-                    'heartbeat_count': audit_session.heartbeat_count + 1
-                }
-                
-                audit_session.sudo().write(update_vals)
-                
-                _logger.debug(f"Heartbeat received for session {audit_session.id}")
-                
-                return {
-                    'success': True,
-                    'session_id': audit_session.id,
-                    'heartbeat_count': audit_session.heartbeat_count,
-                    'status': audit_session.status
-                }
-            else:
-                _logger.warning(f"No active session found for heartbeat: SID={session_id}, User={user_id}")
-                return {'success': False, 'error': 'No active session found'}
-                
+            logout_controller = AuditLogoutController()
+            logout_controller._track_audit_logout()
         except Exception as e:
-            _logger.error(f"Failed to process session heartbeat: {e}")
+            _logger.error(f"Failed to track logout in session destroy: {e}")
+        
+        # Call original destroy method
+        return super().destroy()
+
+
+# ADDITIONAL: JavaScript logout detection endpoint
+class AuditJSController(http.Controller):
+    """Controller for JavaScript-triggered logout detection"""
+    
+    @http.route('/audit/logout/detect', type='json', auth='user', methods=['POST'])
+    def detect_logout(self):
+        """Endpoint for JavaScript logout detection"""
+        _logger.info("JS LOGOUT - Detected via JavaScript")
+        
+        try:
+            logout_controller = AuditLogoutController()
+            logout_controller._track_audit_logout()
+            return {'success': True, 'message': 'Logout tracked'}
+        except Exception as e:
+            _logger.error(f"JS logout detection failed: {e}")
             return {'success': False, 'error': str(e)}
-
-    @http.route('/audit/session/info', type='json', auth='user', methods=['POST'])
-    def get_session_info(self):
-        """Get current session information with enhanced details"""
-        try:
-            session_id = getattr(request.session, 'sid', None)
-            user_id = request.env.user.id
-            
-            if not session_id:
-                return {'error': 'No session ID found'}
-                
-            audit_session = request.env['audit.session'].search([
-                ('session_id', '=', session_id),
-                ('user_id', '=', user_id),
-                ('status', '=', 'active')
-            ], limit=1)
-            
-            if audit_session:
-                # Calculate session duration
-                login_time = audit_session.login_time
-                current_time = fields.Datetime.now()
-                duration_hours = 0
-                if login_time:
-                    duration_delta = current_time - login_time
-                    duration_hours = duration_delta.total_seconds() / 3600
-                
-                # Get concurrent session count
-                concurrent_count = request.env['audit.session'].search_count([
-                    ('user_id', '=', user_id),
-                    ('status', '=', 'active'),
-                    ('id', '!=', audit_session.id)
-                ])
-                
-                return {
-                    'session_id': audit_session.session_id,
-                    'audit_session_id': audit_session.id,
-                    'login_time': audit_session.login_time.isoformat() if audit_session.login_time else None,
-                    'last_activity': audit_session.last_activity.isoformat() if audit_session.last_activity else None,
-                    'duration_hours': round(duration_hours, 2),
-                    'ip_address': audit_session.ip_address,
-                    'device_type': audit_session.device_type,
-                    'browser': audit_session.browser,
-                    'os': audit_session.os,
-                    'country': audit_session.country,
-                    'city': audit_session.city,
-                    'log_count': audit_session.log_count,
-                    'heartbeat_count': audit_session.heartbeat_count,
-                    'status': audit_session.status,
-                    'concurrent_sessions': concurrent_count
-                }
-            else:
-                return {'error': 'No active session found'}
-                
-        except Exception as e:
-            _logger.error(f"Failed to get session info: {e}")
-            return {'error': str(e)}
-
-    @http.route('/audit/session/close', type='json', auth='user', methods=['POST'])
-    def close_session(self, reason=None, timestamp=None, last_activity=None):
-        """Close current audit session with enhanced tracking"""
-        try:
-            session_id = getattr(request.session, 'sid', None)
-            user_id = request.env.user.id
-            
-            if not session_id:
-                return {'success': False, 'message': 'No session ID found'}
-                
-            audit_session = request.env['audit.session'].search([
-                ('session_id', '=', session_id),
-                ('user_id', '=', user_id),
-                ('status', '=', 'active')
-            ], limit=1)
-            
-            if audit_session:
-                # Determine browser close vs manual logout
-                is_browser_close = reason and 'browser_close' in reason
-                
-                close_vals = {
-                    'logout_time': fields.Datetime.now(),
-                    'status': 'logged_out',
-                    'browser_closed': is_browser_close,
-                }
-                
-                # Add reason to error message for tracking
-                if reason:
-                    close_vals['error_message'] = f'Session closed: {reason}'
-                
-                # Update last activity if provided
-                if last_activity:
-                    try:
-                        # Convert timestamp to datetime
-                        if isinstance(last_activity, str):
-                            last_activity_dt = datetime.fromisoformat(last_activity.replace('Z', '+00:00'))
-                        elif isinstance(last_activity, (int, float)):
-                            last_activity_dt = datetime.fromtimestamp(last_activity / 1000)
-                        else:
-                            last_activity_dt = fields.Datetime.now()
-                        close_vals['last_activity'] = last_activity_dt
-                    except:
-                        pass
-                
-                audit_session.sudo().write(close_vals)
-                
-                # Log the session close action
-                self._log_session_action(audit_session, 'close', reason)
-                
-                _logger.info(f"Session {audit_session.id} closed: {reason} (browser_close: {is_browser_close})")
-                
-                return {
-                    'success': True, 
-                    'message': 'Session closed successfully',
-                    'reason': reason,
-                    'browser_closed': is_browser_close
-                }
-            else:
-                return {'success': False, 'message': 'No active session found'}
-                
-        except Exception as e:
-            _logger.error(f"Failed to close audit session: {e}")
-            return {'success': False, 'error': str(e)}
-
-    @http.route('/audit/session/end', type='http', auth='user', methods=['POST'])
-    def handle_session_end(self):
-        """Handle session end via sendBeacon with enhanced processing"""
-        try:
-            data = request.httprequest.get_data()
-            reason = 'browser_close_beacon'
-            
-            if data:
-                try:
-                    parsed_data = json.loads(data.decode('utf-8'))
-                    reason = parsed_data.get('reason', 'browser_close_beacon')
-                except:
-                    pass
-            
-            # Close the session
-            result = self.close_session(reason=reason)
-            
-            # Return appropriate response
-            if result.get('success'):
-                return "OK"
-            else:
-                return "ERROR"
-            
-        except Exception as e:
-            _logger.warning(f"Failed to handle session end: {e}")
-            return "ERROR"
-
-    @http.route('/audit/session/force_close/<int:session_id>', type='json', auth='user', methods=['POST'])
-    def force_close_session(self, session_id):
-        """Force close a specific session (admin only)"""
-        try:
-            if not request.env.user.has_group('peepl_audit_session.group_audit_manager'):
-                return {'success': False, 'error': 'Access denied'}
-            
-            audit_session = request.env['audit.session'].browse(session_id)
-            if not audit_session.exists():
-                return {'success': False, 'error': 'Session not found'}
-            
-            if audit_session.status != 'active':
-                return {'success': False, 'error': 'Session is not active'}
-            
-            audit_session.sudo().write({
-                'logout_time': fields.Datetime.now(),
-                'status': 'forced_logout',
-                'error_message': f'Session forcefully closed by {request.env.user.name}'
-            })
-            
-            _logger.info(f"Session {session_id} forcefully closed by {request.env.user.name}")
-            
-            return {
-                'success': True,
-                'message': f'Session for {audit_session.user_id.name} has been closed'
-            }
-            
-        except Exception as e:
-            _logger.error(f"Failed to force close session {session_id}: {e}")
-            return {'success': False, 'error': str(e)}
-
-    @http.route('/audit/session/stats', type='json', auth='user', methods=['POST'])
-    def get_session_stats(self):
-        """Get session statistics for dashboard"""
-        try:
-            if not request.env.user.has_group('peepl_audit_session.group_audit_manager'):
-                return {'error': 'Access denied'}
-            
-            stats = request.env['audit.session'].get_session_stats()
-            
-            # Add real-time information
-            current_time = fields.Datetime.now()
-            
-            # Recent activity (last hour)
-            recent_cutoff = current_time - timedelta(hours=1)
-            recent_activity = request.env['audit.log.entry'].search_count([
-                ('action_date', '>=', recent_cutoff)
-            ])
-            
-            # Sessions by status breakdown
-            status_breakdown = {}
-            for status in ['active', 'logged_out', 'expired', 'error', 'forced_logout']:
-                count = request.env['audit.session'].search_count([
-                    ('status', '=', status)
-                ])
-                status_breakdown[status] = count
-            
-            # Browser close detection stats
-            browser_closed_count = request.env['audit.session'].search_count([
-                ('browser_closed', '=', True)
-            ])
-            
-            # Sessions with heartbeat in last 10 minutes
-            heartbeat_cutoff = current_time - timedelta(minutes=10)
-            active_heartbeat_count = request.env['audit.session'].search_count([
-                ('status', '=', 'active'),
-                ('last_activity', '>=', heartbeat_cutoff)
-            ])
-            
-            stats.update({
-                'recent_activity_count': recent_activity,
-                'status_breakdown': status_breakdown,
-                'browser_closed_sessions': browser_closed_count,
-                'active_with_recent_heartbeat': active_heartbeat_count,
-                'timestamp': current_time.isoformat()
-            })
-            
-            return stats
-            
-        except Exception as e:
-            _logger.error(f"Failed to get session stats: {e}")
-            return {'error': str(e)}
-
-    def _log_session_action(self, audit_session, action, reason=None):
-        """Log session-related actions as audit entries"""
-        try:
-            # Get the audit.session model ID
-            session_model = request.env['ir.model'].search([('model', '=', 'audit.session')], limit=1)
-            if not session_model:
-                return
-            
-            context_info = {
-                'action': action,
-                'reason': reason,
-                'session_duration': audit_session.duration if action == 'close' else None,
-                'browser_closed': getattr(audit_session, 'browser_closed', False),
-                'heartbeat_count': getattr(audit_session, 'heartbeat_count', 0)
-            }
-            
-            request.env['audit.log.entry'].sudo().create({
-                'user_id': audit_session.user_id.id,
-                'session_id': audit_session.id,
-                'model_id': session_model.id,
-                'res_id': audit_session.id,
-                'res_name': f"Session {action.title()}",
-                'action_type': 'write',
-                'action_date': fields.Datetime.now(),
-                'method': f'session_{action}',
-                'context_info': json.dumps(context_info, default=str)
-            })
-            
-        except Exception as e:
-            _logger.warning(f"Failed to log session action: {e}")

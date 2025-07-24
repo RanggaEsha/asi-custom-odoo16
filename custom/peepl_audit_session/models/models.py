@@ -368,12 +368,13 @@ class AuditSession(models.Model):
     concurrent_sessions = fields.Integer('Concurrent Sessions', 
                                        help="Number of concurrent sessions detected for this user")
     
-    # Status
+    # UPDATED: Status with new 'replaced' option
     status = fields.Selection([
         ('active', 'Active'),
         ('expired', 'Expired'),
         ('logged_out', 'Logged Out'),
         ('forced_logout', 'Forced Logout'),
+        ('replaced', 'Replaced'),  # NEW: For sessions replaced by new logins
         ('error', 'Error')
     ], 'Status', default='active', required=True)
     
@@ -383,6 +384,7 @@ class AuditSession(models.Model):
     log_entry_ids = fields.One2many('audit.log.entry', 'session_id', 'Log Entries')
     log_count = fields.Integer('Log Count', compute='_compute_log_count')
 
+    # Rest of the methods remain the same...
     @api.depends('user_id', 'login_time')
     def _compute_name(self):
         for record in self:

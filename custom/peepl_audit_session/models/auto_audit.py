@@ -13,95 +13,6 @@ class BaseModelOptimized(models.AbstractModel):
     """Optimized BaseModel extension with minimal performance impact"""
     _inherit = 'base'
 
-    def _should_audit_operation(self, operation):
-        """Optimized audit check with early returns"""
-        # PERFORMANCE: Early returns to minimize impact
-        
-        # Skip audit models themselves
-        if self._name.startswith('audit.'):
-            return False
-        
-        # Skip system models that generate noise
-        skip_models = {
-            'ir.logging', 'ir.attachment', 'ir.translation', 'ir.config_parameter',
-            'ir.cron', 'ir.mail_server', 'ir.sequence', 'bus.bus', 'ir.ui.view',
-            'ir.ui.menu', 'ir.model.access', 'ir.rule', 'ir.model.data',
-            'base', 'ir.qweb', 'ir.qweb.field', 'mail.thread', 'mail.alias'
-        }
-        if self._name in skip_models:
-            return False
-            
-        # Skip during installation, tests, or system operations
-        ctx = self.env.context
-        if (ctx.get('module') or ctx.get('install_mode') or ctx.get('test_enable') or 
-            ctx.get('import_file') or ctx.get('_import_current_module')):
-            return False
-            
-        # Skip if no user context - but allow superuser if explicitly configured
-        if not self.env.user:
-            return False
-            
-        # PERFORMANCE: Cache config check with better cache key
-        cache_key = f'_audit_config_cache_{self.env.user.id}'
-        if not hasattr(self.env, cache_key):
-            try:
-                config = self.env['audit.config'].sudo().search([('active', '=', True)], limit=1)
-                setattr(self.env, cache_key, config)
-            except Exception:
-                setattr(self.env, cache_key, None)
-                return False
-        
-        config = getattr(self.env, cache_key)
-        if not config:
-            return False
-            
-        # Master switch check - early exit if auditing disabled
-        if not config.enable_auditing:
-            return False
-            
-        # Quick operation check
-        if operation == 'read' and not config.log_read:
-            return False
-        elif operation == 'write' and not config.log_write:
-            return False
-        elif operation == 'create' and not config.log_create:
-            return False
-        elif operation == 'unlink' and not config.log_unlink:
-            return False
-            
-        # Quick user check - IMPORTANT: Don't automatically skip superuser
-        if not config.all_users:
-            user_cache_key = f'_audit_users_cache_{config.id}'
-            if not hasattr(self.env, user_cache_key):
-                try:
-                    audit_users = set(config.user_ids.mapped('user_id.id'))
-                    setattr(self.env, user_cache_key, audit_users)
-                except Exception:
-                    return False
-            audit_users = getattr(self.env, user_cache_key)
-            if self.env.user.id not in audit_users:
-                return False
-        else:
-            # If all_users is True, we still need to check for public user
-            # Public user (ID 2) should generally be skipped unless explicitly configured
-            if self.env.user.id == 2:  # Skip only public user, not superuser
-                return False
-                
-        # Quick model check
-        if not config.all_objects:
-            model_cache_key = f'_audit_models_cache_{config.id}'
-            if not hasattr(self.env, model_cache_key):
-                try:
-                    audit_models = set(config.object_ids.mapped('model_id.model'))
-                    setattr(self.env, model_cache_key, audit_models)
-                except Exception:
-                    return False
-            audit_models = getattr(self.env, model_cache_key)
-            if self._name not in audit_models:
-                return False
-                
-        return True
-
     @api.model_create_multi  
     def create(self, vals_list):
         """Override create with performance optimization"""
@@ -235,7 +146,7 @@ class BaseModelOptimized(models.AbstractModel):
         return result
 
     def _get_current_session_id(self):
-        """ROBUST: Get current session ID with fallback session creation"""
+        """ENHANCED: Get current session ID with better session creation and tracking"""
         try:
             if not request or not hasattr(request, 'session'):
                 _logger.debug("No request or session context available")
@@ -244,8 +155,7 @@ class BaseModelOptimized(models.AbstractModel):
             session_sid = getattr(request.session, 'sid', None)
             user_id = self.env.user.id
             
-            # Debug logging
-            _logger.info(f"SESSION LOOKUP - SID: {session_sid}, User ID: {user_id}")
+            _logger.debug(f"SESSION LOOKUP - SID: {session_sid}, User ID: {user_id}")
             
             if not session_sid or not user_id:
                 _logger.warning(f"Missing session_sid ({session_sid}) or user_id ({user_id})")
@@ -259,63 +169,187 @@ class BaseModelOptimized(models.AbstractModel):
             ], limit=1)
             
             if session:
-                _logger.info(f"SESSION FOUND - Exact match: {session.id}")
+                _logger.debug(f"SESSION FOUND - Exact match: {session.id}")
                 return session.id
             
-            # STEP 2: Look for any active session for this user (session ID might have changed)
+            # STEP 2: Look for any session with this session ID (regardless of user)
+            # This handles cases where session was created but user ID doesn't match
+            any_session_same_sid = self.env['audit.session'].sudo().search([
+                ('session_id', '=', session_sid),
+                ('status', '=', 'active')
+            ], limit=1)
+            
+            if any_session_same_sid:
+                _logger.warning(f"SESSION FOUND - Different user: session user={any_session_same_sid.user_id.id}, current user={user_id}")
+                # Update the session to current user if needed
+                if any_session_same_sid.user_id.id != user_id:
+                    try:
+                        any_session_same_sid.sudo().write({'user_id': user_id})
+                        _logger.info(f"SESSION UPDATED - Fixed user ID for session {any_session_same_sid.id}")
+                    except Exception as e:
+                        _logger.warning(f"Failed to update session user: {e}")
+                return any_session_same_sid.id
+            
+            # STEP 3: Look for any active session for this user (session ID might have changed)
             user_sessions = self.env['audit.session'].sudo().search([
                 ('user_id', '=', user_id),
                 ('status', '=', 'active')
             ])
             
-            _logger.warning(f"NO EXACT MATCH - Found {len(user_sessions)} active sessions for user {user_id}")
+            _logger.info(f"SESSION CHECK - Found {len(user_sessions)} active sessions for user {user_id}")
             
             if user_sessions:
-                # Use the most recent active session
+                # Use the most recent active session and update its session ID
                 latest_session = user_sessions.sorted('login_time', reverse=True)[0]
-                _logger.warning(f"USING LATEST SESSION - {latest_session.id} (SID: {latest_session.session_id})")
+                _logger.info(f"SESSION REUSE - Using latest session {latest_session.id} (SID: {latest_session.session_id} -> {session_sid})")
                 
-                # Update the session SID to current one (session might have been regenerated)
-                latest_session.sudo().write({'session_id': session_sid})
+                # Update the session SID to current one
+                try:
+                    latest_session.sudo().write({
+                        'session_id': session_sid,
+                        'last_activity': fields.Datetime.now()
+                    })
+                    self.env.cr.commit()
+                    _logger.info(f"SESSION UPDATED - Updated SID for session {latest_session.id}")
+                except Exception as e:
+                    _logger.warning(f"Failed to update session SID: {e}")
+                    
                 return latest_session.id
             
-            # STEP 3: FALLBACK - Create emergency session with comprehensive device info
-            _logger.error(f"EMERGENCY SESSION CREATION - No active session found for user {user_id}")
+            # STEP 4: EMERGENCY - Create session with comprehensive info
+            _logger.warning(f"EMERGENCY SESSION - Creating for user {user_id}, SID {session_sid}")
             
-            # Use the same device extraction method as regular session creation
-            session_model = self.env['audit.session']
-            request_info = session_model.extract_request_info()
-            
-            session_values = {
-                'user_id': user_id,
-                'session_id': session_sid,
-                'login_time': fields.Datetime.now(),
-                'status': 'active',
-                'error_message': 'Emergency session created during action (login hook may have failed)'
-            }
-            session_values.update(request_info)
-            
-            emergency_session = self.env['audit.session'].sudo().create(session_values)
-            
-            # Commit immediately to ensure availability
-            self.env.cr.commit()
-            _logger.error(f"EMERGENCY SESSION CREATED - {emergency_session.id}")
-            return emergency_session.id
+            try:
+                # Use the same device extraction method as regular session creation
+                session_model = self.env['audit.session']
+                request_info = session_model.extract_request_info()
+                
+                session_values = {
+                    'user_id': user_id,
+                    'session_id': session_sid,
+                    'login_time': fields.Datetime.now(),
+                    'last_activity': fields.Datetime.now(),
+                    'status': 'active',
+                    'heartbeat_count': 0,
+                    'browser_closed': False,
+                    'error_message': 'Emergency session created during action (login hook may have failed)'
+                }
+                session_values.update(request_info)
+                
+                emergency_session = self.env['audit.session'].sudo().create(session_values)
+                
+                # Commit immediately to ensure availability
+                self.env.cr.commit()
+                _logger.warning(f"EMERGENCY SESSION CREATED - {emergency_session.id}")
+                return emergency_session.id
+                
+            except Exception as e:
+                _logger.error(f"EMERGENCY SESSION FAILED - {e}")
+                return None
                 
         except Exception as e:
-            _logger.error(f"CRITICAL: Failed to get/create session: {e}")
+            _logger.error(f"CRITICAL SESSION ERROR - {e}")
             return None
 
+    # Rest of the methods remain the same but with enhanced logging
+    def _should_audit_operation(self, operation):
+        """Enhanced audit check with session verification"""
+        # ... (keep existing logic but add session check)
+        
+        # Skip audit models themselves
+        if self._name.startswith('audit.'):
+            return False
+        
+        # Skip system models that generate noise
+        skip_models = {
+            'ir.logging', 'ir.attachment', 'ir.translation', 'ir.config_parameter',
+            'ir.cron', 'ir.mail_server', 'ir.sequence', 'bus.bus', 'ir.ui.view',
+            'ir.ui.menu', 'ir.model.access', 'ir.rule', 'ir.model.data',
+            'base', 'ir.qweb', 'ir.qweb.field', 'mail.thread', 'mail.alias'
+        }
+        if self._name in skip_models:
+            return False
+            
+        # Skip during installation, tests, or system operations
+        ctx = self.env.context
+        if (ctx.get('module') or ctx.get('install_mode') or ctx.get('test_enable') or 
+            ctx.get('import_file') or ctx.get('_import_current_module')):
+            return False
+            
+        # Skip if no user context
+        if not self.env.user:
+            return False
+            
+        # PERFORMANCE: Cache config check
+        cache_key = f'_audit_config_cache_{self.env.user.id}'
+        if not hasattr(self.env, cache_key):
+            try:
+                config = self.env['audit.config'].sudo().search([('active', '=', True)], limit=1)
+                setattr(self.env, cache_key, config)
+            except Exception:
+                setattr(self.env, cache_key, None)
+                return False
+        
+        config = getattr(self.env, cache_key)
+        if not config:
+            return False
+            
+        # Master switch check
+        if not config.enable_auditing:
+            return False
+            
+        # Quick operation check
+        if operation == 'read' and not config.log_read:
+            return False
+        elif operation == 'write' and not config.log_write:
+            return False
+        elif operation == 'create' and not config.log_create:
+            return False
+        elif operation == 'unlink' and not config.log_unlink:
+            return False
+            
+        # Quick user check
+        if not config.all_users:
+            user_cache_key = f'_audit_users_cache_{config.id}'
+            if not hasattr(self.env, user_cache_key):
+                try:
+                    audit_users = set(config.user_ids.mapped('user_id.id'))
+                    setattr(self.env, user_cache_key, audit_users)
+                except Exception:
+                    return False
+            audit_users = getattr(self.env, user_cache_key)
+            if self.env.user.id not in audit_users:
+                return False
+        else:
+            # Skip public user unless explicitly configured
+            if self.env.user.id == 2:
+                return False
+                
+        # Quick model check
+        if not config.all_objects:
+            model_cache_key = f'_audit_models_cache_{config.id}'
+            if not hasattr(self.env, model_cache_key):
+                try:
+                    audit_models = set(config.object_ids.mapped('model_id.model'))
+                    setattr(self.env, model_cache_key, audit_models)
+                except Exception:
+                    return False
+            audit_models = getattr(self.env, model_cache_key)
+            if self._name not in audit_models:
+                return False
+                
+        return True
+
     def _create_audit_log(self, action_type, res_id, old_values=None, new_values=None, session_id=None):
-        """ENHANCED: Create audit log with improved value formatting"""
+        """Enhanced audit log creation with better session handling"""
         try:
             user_id = self.env.user.id
-            _logger.info(f"AUDIT LOG ATTEMPT - {action_type} on {self._name}({res_id}) by user {user_id}")
+            _logger.debug(f"AUDIT LOG - {action_type} on {self._name}({res_id}) by user {user_id}")
             
-            # If no session_id, try to get one
+            # If no session_id, try to get one (this will create emergency session if needed)
             if not session_id:
                 session_id = self._get_current_session_id()
-                _logger.info(f"AUDIT LOG - Retrieved session_id: {session_id}")
+                _logger.debug(f"AUDIT LOG - Retrieved/created session_id: {session_id}")
             
             # Get model ID (cached per model)
             model_cache_key = f'_model_id_cache_{self._name}'
@@ -338,7 +372,7 @@ class BaseModelOptimized(models.AbstractModel):
                 'method': action_type,
             }
             
-            # Add session if available (but don't fail if missing)
+            # Add session if available
             if session_id:
                 audit_vals['session_id'] = session_id
             else:
@@ -357,7 +391,7 @@ class BaseModelOptimized(models.AbstractModel):
             except Exception as e:
                 audit_vals['res_name'] = f"ID: {res_id} (error: {str(e)[:50]})"
             
-            # Enhanced value processing for better human-readable formatting
+            # Enhanced value processing
             if old_values:
                 try:
                     processed_old = self._process_values_for_audit(old_values, res_id)
@@ -376,13 +410,13 @@ class BaseModelOptimized(models.AbstractModel):
                     
             # Create log entry
             log_entry = self.env['audit.log.entry'].sudo().create(audit_vals)
-            _logger.info(f"AUDIT LOG SUCCESS - Created log {log_entry.id} for {action_type} on {self._name}({res_id})")
+            _logger.debug(f"AUDIT LOG SUCCESS - Created log {log_entry.id} for {action_type} on {self._name}({res_id})")
             
             return log_entry
                 
         except Exception as e:
             _logger.error(f"AUDIT LOG CRITICAL FAILURE - {action_type} on {self._name}({res_id}): {e}")
-            # Don't re-raise - audit failures shouldn't break business operations
+
 
     def _process_values_for_audit(self, values, res_id=None):
         """Process values to make them more suitable for human-readable formatting"""
