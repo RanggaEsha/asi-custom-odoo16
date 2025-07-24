@@ -28,14 +28,141 @@
             <field name="model_id" ref="base.model_res_partner"/>
         </record>
 
-        <!-- Cron Job for Session Cleanup -->
-        <record id="ir_cron_audit_session_cleanup" model="ir.cron">
-            <field name="name">Audit: Cleanup Expired Sessions</field>
+       <record id="ir_cron_audit_session_cleanup_enhanced" model="ir.cron">
+            <field name="name">Audit: Enhanced Session Cleanup</field>
             <field name="model_id" ref="model_audit_session"/>
             <field name="state">code</field>
-            <field name="code">model.cleanup_expired_sessions()</field>
-            <field name="interval_number">1</field>
-            <field name="interval_type">hours</field>
+            <field name="code">
+# Enhanced session cleanup with browser close detection
+import logging
+from datetime import datetime, timedelta
+
+_logger = logging.getLogger(__name__)
+
+try:
+    current_time = datetime.now()
+    cleanup_count = 0
+    
+    # Get configuration
+    config = env['audit.config'].search([('active', '=', True)], limit=1)
+    timeout_hours = config.session_timeout_hours if config else 24
+    
+    # 1. Mark expired sessions (older than timeout)
+    cutoff_time = current_time - timedelta(hours=timeout_hours)
+    expired_sessions = env['audit.session'].search([
+        ('status', '=', 'active'),
+        ('login_time', '&lt;', cutoff_time)
+    ])
+    
+    if expired_sessions:
+        expired_sessions.write({
+            'status': 'expired',
+            'logout_time': fields.Datetime.now(),
+            'error_message': f'Session expired after {timeout_hours} hours'
+        })
+        cleanup_count += len(expired_sessions)
+        _logger.info(f"Marked {len(expired_sessions)} sessions as expired")
+    
+    # 2. Detect browser-closed sessions (stale but not expired)
+    stale_cutoff = current_time - timedelta(minutes=30)
+    stale_sessions = env['audit.session'].search([
+        ('status', '=', 'active'),
+        ('last_activity', '&lt;', stale_cutoff),
+        ('login_time', '&gt;', cutoff_time)  # Not expired yet
+    ])
+    
+    for session in stale_sessions:
+        # Check if user has newer active sessions
+        newer_sessions = env['audit.session'].search([
+            ('user_id', '=', session.user_id.id),
+            ('status', '=', 'active'),
+            ('login_time', '&gt;', session.login_time),
+            ('id', '!=', session.id)
+        ])
+        
+        if newer_sessions:
+            # Mark as browser closed
+            session.write({
+                'status': 'logged_out',
+                'logout_time': fields.Datetime.now(),
+                'browser_closed': True,
+                'error_message': 'Browser close detected (new session found)'
+            })
+            cleanup_count += 1
+            _logger.info(f"Detected browser close for session {session.id}")
+    
+    # 3. Clean up very old sessions (optional, for database maintenance)
+    very_old_cutoff = current_time - timedelta(days=90)  # Keep 90 days
+    very_old_sessions = env['audit.session'].search([
+        ('login_time', '&lt;', very_old_cutoff),
+        ('status', 'in', ['logged_out', 'expired'])
+    ])
+    
+    if len(very_old_sessions) > 1000:  # Only if too many old records
+        # Delete oldest first, keep some for historical data
+        to_delete = very_old_sessions.sorted('login_time')[:500]
+        deleted_count = len(to_delete)
+        to_delete.unlink()
+        _logger.info(f"Deleted {deleted_count} very old session records")
+    
+    _logger.info(f"Session cleanup completed: {cleanup_count} sessions processed")
+    
+except Exception as e:
+    _logger.error(f"Session cleanup failed: {e}")
+            </field>
+            <field name="interval_number">15</field>
+            <field name="interval_type">minutes</field>
+            <field name="numbercall">-1</field>
+            <field name="doall" eval="False"/>
+            <field name="active">True</field>
+        </record>
+
+        <!-- Heartbeat Cleanup Cron (Clean sessions without recent heartbeat) -->
+        <record id="ir_cron_audit_heartbeat_cleanup" model="ir.cron">
+            <field name="name">Audit: Heartbeat-based Session Cleanup</field>
+            <field name="model_id" ref="model_audit_session"/>
+            <field name="state">code</field>
+            <field name="code">
+# Cleanup sessions based on missing heartbeats
+import logging
+from datetime import datetime, timedelta
+
+_logger = logging.getLogger(__name__)
+
+try:
+    current_time = datetime.now()
+    
+    # Sessions active but no heartbeat for 1 hour = likely browser closed
+    heartbeat_cutoff = current_time - timedelta(hours=1)
+    
+    stale_heartbeat_sessions = env['audit.session'].search([
+        ('status', '=', 'active'),
+        ('last_activity', '&lt;', heartbeat_cutoff),
+        ('heartbeat_count', '&gt;', 0)  # Had heartbeats before
+    ])
+    
+    cleanup_count = 0
+    for session in stale_heartbeat_sessions:
+        # Check if this is really a browser close vs network issue
+        time_since_activity = current_time - session.last_activity
+        
+        if time_since_activity.total_seconds() > 3600:  # 1 hour
+            session.write({
+                'status': 'logged_out',
+                'logout_time': fields.Datetime.now(),
+                'browser_closed': True,
+                'error_message': f'No heartbeat for {int(time_since_activity.total_seconds()/60)} minutes'
+            })
+            cleanup_count += 1
+    
+    if cleanup_count > 0:
+        _logger.info(f"Heartbeat cleanup: closed {cleanup_count} stale sessions")
+    
+except Exception as e:
+    _logger.error(f"Heartbeat cleanup failed: {e}")
+            </field>
+            <field name="interval_number">30</field>
+            <field name="interval_type">minutes</field>
             <field name="numbercall">-1</field>
             <field name="doall" eval="False"/>
             <field name="active">True</field>

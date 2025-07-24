@@ -1,6 +1,7 @@
-# -*- coding: utf-8 -*-
+# Enhanced session_hook.py with better session management
 
 import logging
+from datetime import datetime, timedelta
 from odoo import models, api, fields
 from odoo.http import request
 from odoo.addons.web.controllers.main import Session
@@ -9,7 +10,7 @@ _logger = logging.getLogger(__name__)
 
 
 class ResUsers(models.Model):
-    """Extend res.users to track login/logout"""
+    """Extend res.users to track login/logout with enhanced session management"""
     _inherit = 'res.users'
 
     def _update_last_login(self):
@@ -20,7 +21,6 @@ class ResUsers(models.Model):
         if self.env.context.get('module') or self.env.context.get('install_mode'):
             return result
         
-        # Create or update audit session if we have request context
         if request and hasattr(request, 'session'):
             try:
                 # Quick check if audit tables exist
@@ -34,201 +34,218 @@ class ResUsers(models.Model):
                 session_sid = getattr(request.session, 'sid', None)
                 user_id = self.id
                 
-                # Debug logging
-                _logger.info(f"LOGIN DEBUG - User {self.login} (ID: {user_id}) logging in with SID: {session_sid}")
+                _logger.info(f"LOGIN - User {self.login} (ID: {user_id}) with SID: {session_sid}")
                 
                 if not session_sid:
-                    _logger.warning(f"No session SID available for user {self.login}")
+                    _logger.warning(f"No session SID for user {self.login}")
                     return result
                 
-                # CRITICAL FIX: Better session search and creation logic
-                existing_session = self.env['audit.session'].sudo().search([
-                    ('session_id', '=', session_sid),
-                    ('user_id', '=', user_id)
-                ], limit=1)
-                
-                if existing_session:
-                    # Update existing session
-                    _logger.info(f"LOGIN DEBUG - Updating existing session {existing_session.id} "
-                               f"(Current status: {existing_session.status})")
-                    existing_session.sudo().write({
-                        'login_time': fields.Datetime.now(),
-                        'status': 'active',
-                        'error_message': False,  # Clear any previous error
-                    })
-                    session_id = existing_session.id
-                else:
-                    # Check for any active sessions with different SID for this user
-                    # This helps identify SID changes
-                    other_active = self.env['audit.session'].sudo().search([
-                        ('user_id', '=', user_id),
-                        ('status', '=', 'active'),
-                        ('session_id', '!=', session_sid)
-                    ])
-                    
-                    if other_active:
-                        _logger.info(f"LOGIN DEBUG - Found {len(other_active)} other active sessions "
-                                   f"for user {user_id} with different SIDs. Closing them.")
-                        # Close other sessions (user might have multiple tabs or session changed)
-                        other_active.sudo().write({
-                            'logout_time': fields.Datetime.now(),
-                            'status': 'expired',
-                            'error_message': 'Session superseded by new login'
-                        })
-                    
-                    # Create new session
-                    _logger.info(f"LOGIN DEBUG - Creating new session for user {self.login} with SID: {session_sid}")
-                    new_session = self.env['audit.session'].sudo().create_session(
-                        user_id=user_id,
-                        session_id=session_sid,
-                        request_obj=request
-                    )
-                    
-                    if new_session:
-                        session_id = new_session.id
-                        _logger.info(f"LOGIN DEBUG - Successfully created session {session_id} for user {self.login}")
-                    else:
-                        _logger.error(f"LOGIN DEBUG - Failed to create session for user {self.login}")
+                # ENHANCED: Handle concurrent sessions and cleanup old ones
+                self._handle_user_session_login(user_id, session_sid)
                     
             except Exception as e:
                 _logger.error(f"Failed to track login for user {self.login}: {e}")
                 
         return result
 
+    def _handle_user_session_login(self, user_id, session_sid):
+        """Enhanced session login handling with concurrent session management"""
+        current_time = fields.Datetime.now()
+        
+        # STEP 1: Close any existing sessions for this specific session ID
+        # This handles the case where the same session ID is reused
+        existing_session_same_sid = self.env['audit.session'].sudo().search([
+            ('session_id', '=', session_sid),
+            ('status', '=', 'active')
+        ])
+        
+        if existing_session_same_sid:
+            _logger.info(f"LOGIN - Reactivating existing session {existing_session_same_sid.id}")
+            # Update existing session instead of creating new one
+            existing_session_same_sid.write({
+                'login_time': current_time,
+                'logout_time': False,
+                'status': 'active',
+                'error_message': False,
+            })
+            return existing_session_same_sid
+        
+        # STEP 2: Handle old sessions for this user
+        old_active_sessions = self.env['audit.session'].sudo().search([
+            ('user_id', '=', user_id),
+            ('status', '=', 'active'),
+            ('session_id', '!=', session_sid)
+        ])
+        
+        if old_active_sessions:
+            _logger.info(f"LOGIN - Found {len(old_active_sessions)} old active sessions for user {user_id}")
+            
+            # Determine session timeout from config
+            timeout_hours = 24  # default
+            config = self.env['audit.config'].sudo().search([('active', '=', True)], limit=1)
+            if config and config.session_timeout_hours:
+                timeout_hours = config.session_timeout_hours
+            
+            cutoff_time = current_time - timedelta(hours=timeout_hours)
+            
+            for old_session in old_active_sessions:
+                # Determine how to close the old session based on age
+                if old_session.login_time < cutoff_time:
+                    # Session is old - mark as expired
+                    status = 'expired'
+                    reason = f'Session expired due to new login (timeout: {timeout_hours}h)'
+                else:
+                    # Session is recent - likely browser close without proper logout
+                    status = 'logged_out'
+                    reason = 'Session closed due to new login (likely browser close)'
+                
+                old_session.write({
+                    'logout_time': current_time,
+                    'status': status,
+                    'error_message': reason
+                })
+                
+                _logger.info(f"LOGIN - Closed old session {old_session.id} with status: {status}")
+        
+        # STEP 3: Create new session
+        _logger.info(f"LOGIN - Creating new session for user {self.login}")
+        new_session = self.env['audit.session'].sudo().create_session(
+            user_id=user_id,
+            session_id=session_sid,
+            request_obj=request
+        )
+        
+        if new_session:
+            _logger.info(f"LOGIN - Created session {new_session.id}")
+            return new_session
+        else:
+            _logger.error(f"LOGIN - Failed to create session")
+            return None
+
+
+class AuditSession(models.Model):
+    """Enhanced Audit Session Model with better session lifecycle management"""
+    _inherit = 'audit.session'
+
+    # Add fields for better session tracking
+    last_activity = fields.Datetime('Last Activity', default=fields.Datetime.now)
+    heartbeat_count = fields.Integer('Heartbeat Count', default=0)
+    browser_closed = fields.Boolean('Browser Closed Detected', default=False)
+    concurrent_sessions = fields.Integer('Concurrent Sessions', 
+                                       help="Number of concurrent sessions detected for this user")
+
     @api.model
-    def check_credentials(self, password):
-        """Override to enhance security tracking"""
+    def cleanup_expired_sessions(self):
+        """Enhanced cleanup with better session status detection"""
         try:
-            result = super().check_credentials(password)
-            return result
-        except Exception as e:
-            # Skip during module installation
-            if self.env.context.get('module') or self.env.context.get('install_mode'):
-                raise
+            # Get configuration
+            config = self.env['audit.config'].search([('active', '=', True)], limit=1)
+            timeout_hours = config.session_timeout_hours if config else 24
+            
+            current_time = datetime.now()
+            cutoff_time = current_time - timedelta(hours=timeout_hours)
+            
+            # Find sessions that should be expired
+            expired_sessions = self.search([
+                ('status', '=', 'active'),
+                ('login_time', '<', cutoff_time)
+            ])
+            
+            if expired_sessions:
+                expired_sessions.write({
+                    'status': 'expired',
+                    'logout_time': fields.Datetime.now(),
+                    'error_message': f'Session expired after {timeout_hours} hours of inactivity'
+                })
+                _logger.info(f"Marked {len(expired_sessions)} sessions as expired")
+            
+            # ENHANCED: Detect sessions that are likely browser-closed
+            # Sessions active for more than 30 minutes without heartbeat updates
+            stale_cutoff = current_time - timedelta(minutes=30)
+            stale_sessions = self.search([
+                ('status', '=', 'active'),
+                ('last_activity', '<', stale_cutoff),
+                ('login_time', '>', cutoff_time)  # Not expired yet, but stale
+            ])
+            
+            for session in stale_sessions:
+                # Check if user has newer active sessions
+                newer_sessions = self.search([
+                    ('user_id', '=', session.user_id.id),
+                    ('status', '=', 'active'),
+                    ('login_time', '>', session.login_time),
+                    ('id', '!=', session.id)
+                ])
                 
-            # Log failed login attempt (simplified)
-            if request and hasattr(request, 'session'):
-                try:
-                    if hasattr(self.env, '_audit_tables_exist') and self.env._audit_tables_exist:
-                        session_sid = getattr(request.session, 'sid', 'unknown')
-                        _logger.info(f"FAILED LOGIN DEBUG - User {self.id} failed login with SID: {session_sid}")
-                        
-                        self.env['audit.session'].sudo().create({
-                            'user_id': self.id,
-                            'session_id': session_sid,
-                            'login_time': fields.Datetime.now(),
-                            'status': 'error',
-                            'error_message': f"Login failed: {str(e)[:100]}",
-                            'ip_address': request.httprequest.remote_addr if request.httprequest else None,
-                        })
-                except Exception as audit_error:
-                    _logger.debug(f"Failed to log failed login attempt: {audit_error}")
-            raise
+                if newer_sessions:
+                    # User has newer session, mark this as browser closed
+                    session.write({
+                        'status': 'logged_out',
+                        'logout_time': fields.Datetime.now(),
+                        'browser_closed': True,
+                        'error_message': 'Session closed due to browser close (detected via new session)'
+                    })
+                    _logger.info(f"Detected browser close for session {session.id}")
+            
+            return len(expired_sessions) + len(stale_sessions)
+            
+        except Exception as e:
+            _logger.error(f"Failed to cleanup expired sessions: {e}")
+            return 0
 
+    @api.model
+    def update_session_heartbeat(self, session_id=None):
+        """Update session heartbeat to track activity"""
+        try:
+            if not session_id and request and hasattr(request, 'session'):
+                session_id = getattr(request.session, 'sid', None)
+                user_id = self.env.user.id
+            
+            if session_id:
+                session = self.sudo().search([
+                    ('session_id', '=', session_id),
+                    ('status', '=', 'active')
+                ], limit=1)
+                
+                if session:
+                    session.write({
+                        'last_activity': fields.Datetime.now(),
+                        'heartbeat_count': session.heartbeat_count + 1
+                    })
+                    return True
+            return False
+            
+        except Exception as e:
+            _logger.debug(f"Failed to update session heartbeat: {e}")
+            return False
 
-class IrHttp(models.AbstractModel):
-    """Enhanced session logout tracking"""
-    _inherit = 'ir.http'
-
-    @classmethod
-    def _authenticate(cls, endpoint):
-        """Override to track session changes with better debugging"""
-        result = super()._authenticate(endpoint)
+    def action_force_close(self):
+        """Manual action to force close a session"""
+        for session in self:
+            if session.status == 'active':
+                session.write({
+                    'status': 'forced_logout',
+                    'logout_time': fields.Datetime.now(),
+                    'error_message': f'Session manually closed by {self.env.user.name}'
+                })
         
-        # Enhanced session state tracking
-        if request and hasattr(request, 'session'):
-            try:
-                session_sid = getattr(request.session, 'sid', None)
-                session_uid = getattr(request.session, 'uid', None)
-                
-                # Debug current session state
-                if session_sid and session_uid:
-                    _logger.debug(f"AUTH DEBUG - Active session: SID={session_sid}, UID={session_uid}")
-                    
-                    # Verify our audit session exists and is active
-                    env = request.env
-                    audit_session = env['audit.session'].sudo().search([
-                        ('session_id', '=', session_sid),
-                        ('user_id', '=', session_uid),
-                        ('status', '=', 'active')
-                    ], limit=1)
-                    
-                    if not audit_session:
-                        _logger.warning(f"AUTH DEBUG - No active audit session found for "
-                                      f"SID={session_sid}, UID={session_uid}")
-                    else:
-                        _logger.debug(f"AUTH DEBUG - Found audit session {audit_session.id}")
-                        
-                elif not session_uid:
-                    # User logged out or session expired
-                    _logger.debug(f"AUTH DEBUG - No user in session (logged out), SID={session_sid}")
-                    cls._handle_session_logout()
-                    
-            except Exception as e:
-                _logger.debug(f"Failed to track session state in _authenticate: {e}")
-                
-        return result
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Sessions Closed',
+                'message': f'{len(self)} session(s) have been forcefully closed.',
+                'type': 'success'
+            }
+        }
 
-    @classmethod
-    def _handle_session_logout(cls):
-        """Handle session logout tracking with debugging"""
-        try:
-            if request and hasattr(request, 'session'):
-                session_sid = getattr(request.session, 'sid', None)
-                if session_sid:
-                    env = request.env
-                    
-                    # Find any active sessions for this session ID
-                    active_sessions = env['audit.session'].sudo().search([
-                        ('session_id', '=', session_sid),
-                        ('status', '=', 'active')
-                    ])
-                    
-                    if active_sessions:
-                        _logger.info(f"LOGOUT DEBUG - Closing {len(active_sessions)} active sessions for SID: {session_sid}")
-                        active_sessions.sudo().write({
-                            'logout_time': fields.Datetime.now(),
-                            'status': 'logged_out'
-                        })
-                    else:
-                        _logger.debug(f"LOGOUT DEBUG - No active sessions found for SID: {session_sid}")
-                        
-        except Exception as e:
-            _logger.debug(f"Failed to handle session logout: {e}")
-
-
-# Enhanced logout detection via Session controller override
-class AuditSession(Session):
-    """Override web session controller to track logout with debugging"""
-    
-    def destroy(self):
-        """Override session destroy to track logout"""
-        try:
-            if request and hasattr(request, 'session'):
-                session_sid = getattr(request.session, 'sid', None)
-                session_uid = getattr(request.session, 'uid', None)
-                
-                _logger.info(f"SESSION DESTROY DEBUG - Destroying session SID={session_sid}, UID={session_uid}")
-                
-                if session_sid and session_uid:
-                    env = request.env
-                    active_session = env['audit.session'].sudo().search([
-                        ('session_id', '=', session_sid),
-                        ('user_id', '=', session_uid),
-                        ('status', '=', 'active')
-                    ], limit=1)
-                    
-                    if active_session:
-                        active_session.sudo().write({
-                            'logout_time': fields.Datetime.now(),
-                            'status': 'logged_out'
-                        })
-                        _logger.info(f"SESSION DESTROY DEBUG - Closed audit session {active_session.id}")
-                    else:
-                        _logger.warning(f"SESSION DESTROY DEBUG - No active audit session found")
-                        
-        except Exception as e:
-            _logger.debug(f"Failed to track logout in destroy: {e}")
-        
-        # Call original destroy method
-        return super().destroy()
+    def get_session_stats(self):
+        """Get session statistics for monitoring"""
+        return {
+            'total_sessions': self.search_count([]),
+            'active_sessions': self.search_count([('status', '=', 'active')]),
+            'expired_sessions': self.search_count([('status', '=', 'expired')]),
+            'logged_out_sessions': self.search_count([('status', '=', 'logged_out')]),
+            'error_sessions': self.search_count([('status', '=', 'error')]),
+            'browser_closed_sessions': self.search_count([('browser_closed', '=', True)]),
+        }

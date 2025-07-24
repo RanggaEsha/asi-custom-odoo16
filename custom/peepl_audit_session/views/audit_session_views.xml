@@ -26,8 +26,16 @@
                     <field name="country"/>
                     <field name="city"/>
                     <field name="log_count"/>
+                    <field name="last_activity"/>
+                    <field name="heartbeat_count"/>
+                    <field name="browser_closed" widget="boolean_toggle"/>
+                    <field name="concurrent_sessions"/>
                     <button name="action_view_logs" type="object" icon="fa-list" 
                             title="View Activity Logs" class="btn-link"/>
+                    <button name="action_force_close" type="object" icon="fa-times-circle" 
+                            title="Force Close Session" class="btn-link text-danger"
+                            groups="peepl_audit_session.group_audit_manager"
+                            attrs="{'invisible': [('status', '!=', 'active')]}"/>
                 </tree>
             </field>
         </record>
@@ -41,6 +49,11 @@
                     <header>
                         <field name="status" widget="statusbar" 
                                statusbar_visible="active,logged_out,expired,error"/>
+                        <attribute name="statusbar_visible">active,logged_out,expired,forced_logout,error</attribute>
+                        <button name="action_force_close" type="object" icon="fa-times-circle" 
+                            title="Force Close Session" class="btn-link text-danger"
+                            groups="peepl_audit_session.group_audit_manager"
+                            attrs="{'invisible': [('status', '!=', 'active')]}"/>
                     </header>
                     <sheet>
                         <div class="oe_button_box" name="button_box">
@@ -52,6 +65,23 @@
                         
                         <div class="oe_title">
                             <h1><field name="name"/></h1>
+                            <div class="alert alert-success" role="alert" 
+                                attrs="{'invisible': [('status', '!=', 'active')]}">
+                                <strong>Active Session</strong> - User is currently logged in
+                                <span attrs="{'invisible': [('heartbeat_count', '=', 0)]}">
+                                    (Last heartbeat: <field name="last_activity" readonly="1"/> - <field name="heartbeat_count" readonly="1"/> heartbeats)
+                                </span>
+                            </div>
+                            
+                            <div class="alert alert-warning" role="alert" 
+                                attrs="{'invisible': [('browser_closed', '!=', True)]}">
+                                <strong>Browser Close Detected</strong> - This session was closed due to browser/tab closure
+                            </div>
+                            
+                            <div class="alert alert-info" role="alert" 
+                                attrs="{'invisible': [('concurrent_sessions', '=', 0)]}">
+                                <strong>Concurrent Sessions</strong> - This user had <field name="concurrent_sessions" readonly="1"/> other active sessions
+                            </div>
                         </div>
                         
                         <group>
@@ -61,6 +91,10 @@
                                 <field name="login_time"/>
                                 <field name="logout_time"/>
                                 <field name="duration" widget="float_time"/>
+                                <field name="last_activity"/>
+                                <field name="heartbeat_count"/>
+                                <field name="browser_closed"/>
+                                <field name="concurrent_sessions"/>
                             </group>
                             <group string="Technical Info">
                                 <field name="ip_address"/>
@@ -133,6 +167,13 @@
                     <filter string="Logged Out" name="logged_out" domain="[('status', '=', 'logged_out')]"/>
                     <filter string="Expired" name="expired" domain="[('status', '=', 'expired')]"/>
                     <filter string="Error Sessions" name="error" domain="[('status', '=', 'error')]"/>
+                    <filter string="Forced Logout" name="forced_logout" domain="[('status', '=', 'forced_logout')]"/>
+                    <filter string="Browser Closed" name="browser_closed" domain="[('browser_closed', '=', True)]"/>
+                    <separator/>
+                    <filter string="Recent Activity (1h)" name="recent_activity" 
+                            domain="[('last_activity', '>=', (datetime.datetime.now() - datetime.timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S'))]"/>
+                    <filter string="Stale Sessions" name="stale_sessions" 
+                            domain="[('status', '=', 'active'), ('last_activity', '&lt;', (datetime.datetime.now() - datetime.timedelta(minutes=30)).strftime('%Y-%m-%d %H:%M:%S'))]"/>
                     <separator/>
                     <filter string="Today" name="today" domain="[('login_time', '&gt;=', datetime.datetime.combine(context_today(), datetime.time(0,0,0)))]"/>
                     <filter string="This Week" name="this_week" domain="[('login_time', '&gt;=', (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
@@ -147,6 +188,8 @@
                         <filter string="Device Type" name="group_by_device" context="{'group_by': 'device_type'}"/>
                         <filter string="Country" name="group_by_country" context="{'group_by': 'country'}"/>
                         <filter string="Login Date" name="group_by_date" context="{'group_by': 'login_time:day'}"/>
+                        <filter string="Browser Closed" name="group_by_browser_closed" context="{'group_by': 'browser_closed'}"/>
+                        <filter string="Last Activity" name="group_by_last_activity" context="{'group_by': 'last_activity:day'}"/>
                     </group>
                 </search>
             </field>
@@ -204,6 +247,27 @@
                 <p>
                     User sessions are automatically created when users log in.
                     Sessions track login time, device info, location, and user activities.
+                </p>
+            </field>
+        </record>
+
+        <record id="action_session_monitoring" model="ir.actions.act_window">
+            <field name="name">Session Monitoring</field>
+            <field name="res_model">audit.session</field>
+            <field name="view_mode">kanban,tree,form</field>
+            <field name="domain">[('status', 'in', ['active', 'logged_out'])]</field>
+            <field name="context">{
+                'search_default_active': 1,
+                'search_default_today': 1,
+                'search_default_group_by_status': 1
+            }</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No active sessions to monitor!
+                </p>
+                <p>
+                    This view shows active and recent user sessions for monitoring purposes.
+                    You can force close active sessions if needed.
                 </p>
             </field>
         </record>

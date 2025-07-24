@@ -54,6 +54,7 @@
         'web.assets_backend': [
             'peepl_audit_session/static/src/js/logout.js',
             'peepl_audit_session/static/src/js/audit_session_tracker.js',
+            'peepl_audit_session/static/src/js/enhanced_session_tracker.js',
         ],
     },
     'installable': True,
