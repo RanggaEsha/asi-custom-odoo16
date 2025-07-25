@@ -9,7 +9,7 @@ class CrmLead(models.Model):
     def message_post(self, **kwargs):
         res = super(CrmLead, self).message_post(**kwargs)
         # Also post to related partner if exists
-        if self.partner_id and self.partner_id.enable_crm_lead_logging:
+        if self.partner_id and getattr(self.partner_id, 'enable_crm_lead_logging', False):
             # Prefix for clarity
             body = kwargs.get('body', '')
             subject = kwargs.get('subject', 'Lead Note')
@@ -25,7 +25,7 @@ class CrmLead(models.Model):
     def create(self, vals):
         """Override create method to log activity in related contact"""
         lead = super(CrmLead, self).create(vals)
-        if lead.partner_id:
+        if lead.partner_id and getattr(lead.partner_id, 'enable_crm_activity_logging', False):
             lead.partner_id.log_activity('create', lead)
         return lead
 
@@ -41,7 +41,7 @@ class CrmLead(models.Model):
         result = super(CrmLead, self).write(vals)
         # Log changes after update
         for lead in self:
-            if lead.partner_id:
+            if lead.partner_id and getattr(lead.partner_id, 'enable_crm_activity_logging', False):
                 changes = []
                 for field in changed_fields:
                     old_val = old_values.get(lead.id, {}).get(field, False)
@@ -58,6 +58,6 @@ class CrmLead(models.Model):
     def unlink(self):
         """Override unlink method to log activity in related contact"""
         for lead in self:
-            if lead.partner_id:
+            if lead.partner_id and getattr(lead.partner_id, 'enable_crm_activity_logging', False):
                 lead.partner_id.log_activity('unlink', lead)
         return super(CrmLead, self).unlink()

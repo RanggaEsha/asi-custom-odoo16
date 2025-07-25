@@ -14,10 +14,15 @@ class ResPartner(models.Model):
         help='Enable logging of CRM lead operations in this contact'
     )
 
+    enable_crm_activity_logging = fields.Boolean(
+        string='Enable CRM Activity Logging',
+        default=True,
+        help='Enable logging of CRM activity operations in this contact'
+    )
+
     def log_activity(self, action_type, lead, changes=None):
         """Log crm.lead operation to this contact with readable message and changed fields (human-friendly for relations)"""
-        if not self.enable_crm_lead_logging:
-            return
+    
         user_name = self.env.user.name
         lead_name = lead.name or 'No Name'
         lead_type = dict(lead._fields['type'].selection).get(lead.type, '') if hasattr(lead, 'type') else ''
@@ -41,24 +46,78 @@ class ResPartner(models.Model):
                 field = change['field']
                 old = change['old']
                 new = change['new']
-                # Try to get human-friendly value for relational fields
                 field_obj = lead._fields.get(field)
-                if field_obj and field_obj.type == 'many2one':
-                    def get_rel_display(val):
-                        if not val:
-                            return '(empty)'
-                        if isinstance(val, models.BaseModel):
-                            return getattr(val, 'display_name', None) or getattr(val, 'name', None) or str(val)
-                        elif isinstance(val, int):
-                            rec = lead.env[field_obj.comodel_name].browse(val)
-                            if rec.exists():
-                                return getattr(rec, 'display_name', None) or getattr(rec, 'name', None) or str(val)
+                if field_obj:
+                    if field_obj.type == 'many2one':
+                        def get_rel_display(val):
+                            if not val:
+                                return '(empty)'
+                            if isinstance(val, models.BaseModel):
+                                return getattr(val, 'display_name', None) or getattr(val, 'name', None) or str(val)
+                            elif isinstance(val, int):
+                                rec = lead.env[field_obj.comodel_name].browse(val)
+                                if rec.exists():
+                                    return getattr(rec, 'display_name', None) or getattr(rec, 'name', None) or str(val)
+                                else:
+                                    return str(val)
+                            return str(val)
+                        old_display = get_rel_display(old)
+                        new_display = get_rel_display(new)
+                        message += f"- <b>{field}</b>: <span style='color:#888'>{old_display}</span> → <span style='color:#007700'>{new_display}</span><br/>"
+                    elif field_obj.type == 'many2many':
+                        def get_m2m_display(val):
+                            if not val:
+                                return '(empty)'
+                            ids = []
+                            # Odoo may pass as list of ids, set, or recordset
+                            if isinstance(val, models.BaseModel):
+                                ids = val.ids
+                            elif isinstance(val, (list, set, tuple)):
+                                ids = list(val)
+                            elif isinstance(val, int):
+                                ids = [val]
                             else:
-                                return str(val)
-                        return str(val)
-                    old_display = get_rel_display(old)
-                    new_display = get_rel_display(new)
-                    message += f"- <b>{field}</b>: <span style='color:#888'>{old_display}</span> → <span style='color:#007700'>{new_display}</span><br/>"
+                                try:
+                                    ids = list(val)
+                                except Exception:
+                                    ids = []
+                            if not ids:
+                                return '(empty)'
+                            recs = lead.env[field_obj.comodel_name].browse(ids)
+                            names = [getattr(rec, 'display_name', None) or getattr(rec, 'name', None) or str(rec.id) for rec in recs if rec.exists()]
+                            return ', '.join(names) if names else '(empty)'
+                        old_display = get_m2m_display(old)
+                        new_display = get_m2m_display(new)
+                        message += f"- <b>{field}</b>: <span style='color:#888'>{old_display}</span> → <span style='color:#007700'>{new_display}</span><br/>"
+                    elif field_obj.type == 'one2many':
+                        def get_o2m_display(val):
+                            if not val:
+                                return '(empty)'
+                            ids = []
+                            # Odoo may pass as recordset, list of ids, etc.
+                            if isinstance(val, models.BaseModel):
+                                ids = val.ids
+                            elif isinstance(val, (list, set, tuple)):
+                                ids = list(val)
+                            elif isinstance(val, int):
+                                ids = [val]
+                            else:
+                                try:
+                                    ids = list(val)
+                                except Exception:
+                                    ids = []
+                            if not ids:
+                                return '(empty)'
+                            recs = lead.env[field_obj.comodel_name].browse(ids)
+                            names = [getattr(rec, 'display_name', None) or getattr(rec, 'name', None) or str(rec.id) for rec in recs if rec.exists()]
+                            return ', '.join(names) if names else '(empty)'
+                        old_display = get_o2m_display(old)
+                        new_display = get_o2m_display(new)
+                        message += f"- <b>{field}</b>: <span style='color:#888'>{old_display}</span> → <span style='color:#007700'>{new_display}</span><br/>"
+                    else:
+                        old_str = str(old) if old not in [False, None, ''] else '(empty)'
+                        new_str = str(new) if new not in [False, None, ''] else '(empty)'
+                        message += f"- <b>{field}</b>: <span style='color:#888'>{old_str}</span> → <span style='color:#007700'>{new_str}</span><br/>"
                 else:
                     old_str = str(old) if old not in [False, None, ''] else '(empty)'
                     new_str = str(new) if new not in [False, None, ''] else '(empty)'

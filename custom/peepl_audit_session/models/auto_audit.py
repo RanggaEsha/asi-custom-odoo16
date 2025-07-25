@@ -1,10 +1,16 @@
 # -*- coding: utf-8 -*-
 
+
 import json
 import logging
 from datetime import datetime
 from odoo import models, api, fields
 from odoo.http import request
+try:
+    from user_agents import parse as parse_ua
+    USER_AGENTS_AVAILABLE = True
+except ImportError:
+    USER_AGENTS_AVAILABLE = False
 
 _logger = logging.getLogger(__name__)
 
@@ -205,20 +211,73 @@ class BaseModelOptimized(models.AbstractModel):
             _logger.warning(f"AUDIT_SESSION - No active session found, creating emergency session for user {user_id}")
             
             try:
+                # Try to extract real values from request headers if available
+
+                device_type = 'unknown'
+                browser = 'Unknown'
+                os_name = 'Unknown'
+                ip_address = 'unknown'
+                user_agent_str = None
+
+                if request and hasattr(request, 'httprequest'):
+                    httpreq = request.httprequest
+                    # IP address: prefer X-Forwarded-For, fallback to remote_addr
+                    ip_address = httpreq.headers.get('X-Forwarded-For')
+                    if ip_address:
+                        # X-Forwarded-For can be a comma-separated list, take the first
+                        ip_address = ip_address.split(',')[0].strip()
+                    else:
+                        ip_address = httpreq.remote_addr or 'unknown'
+
+                    # User-Agent
+                    user_agent_str = httpreq.headers.get('User-Agent', None)
+                    if user_agent_str and USER_AGENTS_AVAILABLE:
+                        try:
+                            ua = parse_ua(user_agent_str)
+                            # Device type
+                            if ua.is_mobile:
+                                device_type = 'mobile'
+                            elif ua.is_tablet:
+                                device_type = 'tablet'
+                            elif ua.is_pc:
+                                device_type = 'desktop'
+                            else:
+                                device_type = 'unknown'
+                            # Browser
+                            browser = ua.browser.family or 'Unknown'
+                            # OS
+                            os_name = ua.os.family or 'Unknown'
+                        except Exception as e:
+                            _logger.debug(f"AUDIT_SESSION - Failed to parse user agent: {e}")
+                            browser = user_agent_str[:50] if user_agent_str else 'Unknown'
+                    elif user_agent_str:
+                        # user_agents not available, fallback to raw string
+                        browser = user_agent_str[:50]
+
+                # Fallbacks if still unknown or empty
+                if not ip_address or ip_address.lower() == 'unknown':
+                    ip_address = 'unknown'
+                if not browser or browser.lower() == 'unknown':
+                    browser = 'Unknown'
+                if not os_name or os_name.lower() == 'unknown':
+                    os_name = 'Unknown'
+                if not device_type or device_type.lower() == 'unknown':
+                    device_type = 'unknown'
+
                 emergency_session = self.env['audit.session'].sudo().create({
                     'user_id': user_id,
                     'session_id': session_sid,
                     'login_time': fields.Datetime.now(),
                     'last_activity': fields.Datetime.now(),
                     'status': 'active',
-                    'device_type': 'unknown',
-                    'browser': 'Unknown',
-                    'os': 'Unknown',
-                    'ip_address': 'unknown',
+                    'device_type': device_type,
+                    'browser': browser,
+                    'os': os_name,
+                    'ip_address': ip_address,
                     'browser_closed': False,
                     'error_message': 'Emergency session created during CRUD operation'
                 })
-                
+
                 _logger.warning(f"AUDIT_SESSION - Created emergency session {emergency_session.id}")
                 return emergency_session.id
                 
@@ -232,13 +291,10 @@ class BaseModelOptimized(models.AbstractModel):
 
     # Rest of the methods remain the same but with enhanced logging
     def _should_audit_operation(self, operation):
-        """Enhanced audit check with session verification"""
-        # ... (keep existing logic but add session check)
-        
+        """Enhanced audit check with session verification, supporting multiple configs"""
         # Skip audit models themselves
         if self._name.startswith('audit.'):
             return False
-        
         # Skip system models that generate noise
         skip_models = {
             'ir.logging', 'ir.attachment', 'ir.translation', 'ir.config_parameter',
@@ -248,76 +304,69 @@ class BaseModelOptimized(models.AbstractModel):
         }
         if self._name in skip_models:
             return False
-            
         # Skip during installation, tests, or system operations
         ctx = self.env.context
         if (ctx.get('module') or ctx.get('install_mode') or ctx.get('test_enable') or 
             ctx.get('import_file') or ctx.get('_import_current_module')):
             return False
-            
         # Skip if no user context
         if not self.env.user:
             return False
-            
-        # PERFORMANCE: Cache config check
-        cache_key = f'_audit_config_cache_{self.env.user.id}'
-        if not hasattr(self.env, cache_key):
-            try:
-                config = self.env['audit.config'].sudo().search([('active', '=', True)], limit=1)
-                setattr(self.env, cache_key, config)
-            except Exception:
-                setattr(self.env, cache_key, None)
-                return False
-        
-        config = getattr(self.env, cache_key)
-        if not config:
+
+        # Get all active configs
+        try:
+            configs = self.env['audit.config'].sudo().search([('active', '=', True)])
+        except Exception:
             return False
-            
-        # Master switch check
-        if not config.enable_auditing:
+        if not configs:
             return False
-            
-        # Quick operation check
-        if operation == 'read' and not config.log_read:
-            return False
-        elif operation == 'write' and not config.log_write:
-            return False
-        elif operation == 'create' and not config.log_create:
-            return False
-        elif operation == 'unlink' and not config.log_unlink:
-            return False
-            
-        # Quick user check
-        if not config.all_users:
-            user_cache_key = f'_audit_users_cache_{config.id}'
-            if not hasattr(self.env, user_cache_key):
-                try:
-                    audit_users = set(config.user_ids.mapped('user_id.id'))
-                    setattr(self.env, user_cache_key, audit_users)
-                except Exception:
-                    return False
-            audit_users = getattr(self.env, user_cache_key)
-            if self.env.user.id not in audit_users:
-                return False
-        else:
-            # Skip public user unless explicitly configured
-            if self.env.user.id == 2:
-                return False
-                
-        # Quick model check
-        if not config.all_objects:
-            model_cache_key = f'_audit_models_cache_{config.id}'
-            if not hasattr(self.env, model_cache_key):
-                try:
-                    audit_models = set(config.object_ids.mapped('model_id.model'))
-                    setattr(self.env, model_cache_key, audit_models)
-                except Exception:
-                    return False
-            audit_models = getattr(self.env, model_cache_key)
-            if self._name not in audit_models:
-                return False
-                
-        return True
+
+        # If any config allows auditing, return True
+        for config in configs:
+            # Master switch check
+            if not config.enable_auditing:
+                continue
+            # Quick operation check
+            if operation == 'read' and not config.log_read:
+                continue
+            elif operation == 'write' and not config.log_write:
+                continue
+            elif operation == 'create' and not config.log_create:
+                continue
+            elif operation == 'unlink' and not config.log_unlink:
+                continue
+            # Quick user check
+            if not config.all_users:
+                user_cache_key = f'_audit_users_cache_{config.id}'
+                if not hasattr(self.env, user_cache_key):
+                    try:
+                        audit_users = set(config.user_ids.mapped('user_id.id'))
+                        setattr(self.env, user_cache_key, audit_users)
+                    except Exception:
+                        continue
+                audit_users = getattr(self.env, user_cache_key)
+                if self.env.user.id not in audit_users:
+                    continue
+            else:
+                # Skip public user unless explicitly configured
+                if self.env.user.id == 2:
+                    continue
+            # Quick model check
+            if not config.all_objects:
+                model_cache_key = f'_audit_models_cache_{config.id}'
+                if not hasattr(self.env, model_cache_key):
+                    try:
+                        audit_models = set(config.object_ids.mapped('model_id.model'))
+                        setattr(self.env, model_cache_key, audit_models)
+                    except Exception:
+                        continue
+                audit_models = getattr(self.env, model_cache_key)
+                if self._name not in audit_models:
+                    continue
+            # If all checks pass for this config, audit is enabled
+            return True
+        # If no config allows auditing, return False
+        return False
 
     def _create_audit_log(self, action_type, res_id, old_values=None, new_values=None, session_id=None):
         """Enhanced audit log creation with better session handling"""

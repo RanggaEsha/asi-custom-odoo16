@@ -721,20 +721,52 @@ class AuditLogEntry(models.Model):
             return f"{field_name}: {str(value)}"
 
     def _format_single_field_safe(self, target_model, field_name, value, value_type='new'):
-        """Safely format a single field with model information"""
+        """Safely format a single field with model information, showing display_name or name for relations"""
         try:
-            # Check if field exists in model
             if not hasattr(target_model, '_fields') or field_name not in target_model._fields:
                 return self._format_field_basic(field_name, value)
-            
             field = target_model._fields[field_name]
             field_label = getattr(field, 'string', None) or field_name.replace('_', ' ').title()
-            
-            # Handle different field types safely
+            # Many2one: fetch display_name or name if possible
             if field.type == 'many2one':
-                return self._format_many2one_field_ultra_safe(field_label, value, getattr(field, 'comodel_name', None))
+                comodel = getattr(field, 'comodel_name', None)
+                if comodel and value:
+                    rec_id = value[0] if isinstance(value, (list, tuple)) and len(value) >= 1 else value
+                    try:
+                        rec = self.env[comodel].browse(rec_id)
+                        if rec.exists():
+                            disp = getattr(rec, 'display_name', None) or getattr(rec, 'name', None) or str(rec.id)
+                            return f"{field_label}: {disp} (ID: {rec.id})"
+                    except Exception:
+                        pass
+                return self._format_many2one_field_ultra_safe(field_label, value, comodel)
+            # Many2many/One2many: fetch display_name or name if possible
             elif field.type in ['one2many', 'many2many']:
-                return self._format_relation_field_ultra_safe(field_label, value, getattr(field, 'comodel_name', None))
+                comodel = getattr(field, 'comodel_name', None)
+                if comodel and value:
+                    ids = []
+                    if isinstance(value, list):
+                        if all(isinstance(v, int) for v in value):
+                            ids = value
+                        elif all(isinstance(v, (list, tuple)) and len(v) >= 1 for v in value):
+                            ids = [v[0] for v in value]
+                        elif all(isinstance(v, dict) and 'id' in v for v in value):
+                            ids = [v['id'] for v in value]
+                    try:
+                        recs = self.env[comodel].browse(ids)
+                        names = []
+                        for r in recs:
+                            if r.exists():
+                                disp = getattr(r, 'display_name', None) or getattr(r, 'name', None) or str(r.id)
+                                names.append(disp)
+                        if names:
+                            if len(names) <= 5:
+                                return f"{field_label}: {', '.join(names)}"
+                            else:
+                                return f"{field_label}: {len(names)} records (e.g. {', '.join(names[:3])}, ... )"
+                    except Exception:
+                        pass
+                return self._format_relation_field_ultra_safe(field_label, value, comodel)
             elif field.type == 'selection':
                 return self._format_selection_field_ultra_safe(field_label, value, getattr(field, 'selection', None))
             elif field.type == 'boolean':
@@ -747,9 +779,7 @@ class AuditLogEntry(models.Model):
                 return self._format_text_field_safe(field_label, value)
             else:
                 return f"{field_label}: {value}"
-                
-        except Exception as e:
-            # Fallback to basic formatting
+        except Exception:
             return self._format_field_basic(field_name, value)
 
     def _format_many2one_field_ultra_safe(self, field_label, value, comodel_name):
@@ -768,11 +798,34 @@ class AuditLogEntry(models.Model):
             return f"{field_label}: {str(value)}"
 
     def _format_relation_field_ultra_safe(self, field_label, value, comodel_name):
-        """Ultra-safe relation field formatting"""
+        """Ultra-safe relation field formatting, try to show display_names or names if possible"""
         if not value:
             return f"{field_label}: (empty)"
-        
         try:
+            if comodel_name and isinstance(value, list) and value:
+                ids = []
+                if all(isinstance(v, int) for v in value):
+                    ids = value
+                elif all(isinstance(v, (list, tuple)) and len(v) >= 1 for v in value):
+                    ids = [v[0] for v in value]
+                elif all(isinstance(v, dict) and 'id' in v for v in value):
+                    ids = [v['id'] for v in value]
+                if ids:
+                    try:
+                        recs = self.env[comodel_name].browse(ids)
+                        names = []
+                        for r in recs:
+                            if r.exists():
+                                disp = getattr(r, 'display_name', None) or getattr(r, 'name', None) or str(r.id)
+                                names.append(disp)
+                        if names:
+                            if len(names) <= 5:
+                                return f"{field_label}: {', '.join(names)}"
+                            else:
+                                return f"{field_label}: {len(names)} records (e.g. {', '.join(names[:3])}, ... )"
+                    except Exception:
+                        pass
+            # fallback to default
             if isinstance(value, list):
                 if len(value) == 0:
                     return f"{field_label}: (empty)"
@@ -1012,28 +1065,35 @@ class AuditMixin(models.AbstractModel):
     _description = 'Audit Mixin'
 
     def _should_audit_action(self, action_type):
-        """Check if action should be audited"""
-        config = self.env['audit.config'].get_active_config()
-        if not config:
+        """Check if action should be audited, supporting multiple configs like auto_audit.py"""
+        # Get all active configs
+        try:
+            configs = self.env['audit.config'].sudo().search([('active', '=', True)])
+        except Exception:
             return False
-            
-        # Check if user should be audited
-        if not config.should_audit_user(self.env.user.id):
+        if not configs:
             return False
-            
-        # Check if model should be audited
-        if not config.should_audit_model(self._name):
-            return False
-            
-        # Check if action type is enabled
-        action_checks = {
-            'create': config.log_create,
-            'write': config.log_write,
-            'read': config.log_read,
-            'unlink': config.log_unlink
-        }
-        
-        return action_checks.get(action_type, False)
+
+        for config in configs:
+            # Master switch check
+            if not config.enable_auditing:
+                continue
+            # Check if user should be audited
+            if not config.should_audit_user(self.env.user.id):
+                continue
+            # Check if model should be audited
+            if not config.should_audit_model(self._name):
+                continue
+            # Check if action type is enabled
+            action_checks = {
+                'create': config.log_create,
+                'write': config.log_write,
+                'read': config.log_read,
+                'unlink': config.log_unlink
+            }
+            if action_checks.get(action_type, False):
+                return True
+        return False
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -1054,14 +1114,34 @@ class AuditMixin(models.AbstractModel):
         return records
 
     def write(self, vals):
-        """Override write to log audit"""
+        """Override write to log audit, store Many2one, One2many, Many2many as [id, display_name or name]"""
+        def _get_audit_value(record, field_name):
+            field = record._fields.get(field_name)
+            if not field:
+                return record[field_name]
+            val = record[field_name]
+            if field.type == 'many2one':
+                if val:
+                    return [val.id, getattr(val, 'display_name', None) or getattr(val, 'name', None) or str(val.id)]
+                else:
+                    return False
+            elif field.type in ('one2many', 'many2many'):
+                if val:
+                    return [
+                        [rec.id, getattr(rec, 'display_name', None) or getattr(rec, 'name', None) or str(rec.id)]
+                        for rec in val
+                    ]
+                else:
+                    return []
+            return val
+
         if self._should_audit_action('write'):
             old_values = {}
             for record in self:
-                old_values[record.id] = {field: record[field] for field in vals.keys() if field in record._fields}
-        
+                old_values[record.id] = {field: _get_audit_value(record, field) for field in vals.keys() if field in record._fields}
+
         result = super().write(vals)
-        
+
         if self._should_audit_action('write'):
             changed_fields = list(vals.keys())
             for record in self:
@@ -1075,14 +1155,34 @@ class AuditMixin(models.AbstractModel):
                     changed_fields=changed_fields,
                     method='write'
                 )
-        
+
         return result
 
     def unlink(self):
-        """Override unlink to log audit"""
+        """Override unlink to log audit, store Many2one, One2many, Many2many as [id, display_name or name]"""
+        def _get_audit_value(record, field_name):
+            field = record._fields.get(field_name)
+            if not field:
+                return record[field_name]
+            val = record[field_name]
+            if field.type == 'many2one':
+                if val:
+                    return [val.id, getattr(val, 'display_name', None) or getattr(val, 'name', None) or str(val.id)]
+                else:
+                    return False
+            elif field.type in ('one2many', 'many2many'):
+                if val:
+                    return [
+                        [rec.id, getattr(rec, 'display_name', None) or getattr(rec, 'name', None) or str(rec.id)]
+                        for rec in val
+                    ]
+                else:
+                    return []
+            return val
+
         if self._should_audit_action('unlink'):
             for record in self:
-                old_values = {field.name: record[field.name] for field in record._fields.values() 
+                old_values = {field.name: _get_audit_value(record, field.name) for field in record._fields.values() 
                             if field.store and hasattr(record, field.name)}
                 self.env['audit.log.entry'].log_action(
                     user_id=self.env.user.id,
@@ -1092,7 +1192,7 @@ class AuditMixin(models.AbstractModel):
                     old_values=old_values,
                     method='unlink'
                 )
-        
+
         return super().unlink()
 
     def read(self, fields=None, load='_classic_read'):
