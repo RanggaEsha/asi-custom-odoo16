@@ -8,6 +8,64 @@ from dateutil.relativedelta import relativedelta
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
+    enable_crm_lead_logging = fields.Boolean(
+        string='Enable CRM Lead Logging',
+        default=True,
+        help='Enable logging of CRM lead operations in this contact'
+    )
+
+    def log_activity(self, action_type, lead, changes=None):
+        """Log crm.lead operation to this contact with readable message and changed fields (human-friendly for relations)"""
+        if not self.enable_crm_lead_logging:
+            return
+        user_name = self.env.user.name
+        lead_name = lead.name or 'No Name'
+        lead_type = dict(lead._fields['type'].selection).get(lead.type, '') if hasattr(lead, 'type') else ''
+        prefix = {
+            'create': '[Lead Created]',
+            'write': '[Lead Updated]',
+            'unlink': '[Lead Deleted]'
+        }.get(action_type, '[Lead Action]')
+        message = f"<b>{prefix}</b> by <b>{user_name}</b><br/>"
+        message += f"• Lead: <b>{lead_name}</b><br/>"
+        if lead_type:
+            message += f"• Type: {lead_type}<br/>"
+        if action_type == 'create':
+            if lead.expected_revenue:
+                message += f"• Expected Revenue: {lead.expected_revenue}<br/>"
+            if lead.date_deadline:
+                message += f"• Deadline: {lead.date_deadline}<br/>"
+        if action_type == 'write' and changes:
+            message += "<b>• Changed Fields:</b><br/>"
+            for change in changes:
+                field = change['field']
+                old = change['old']
+                new = change['new']
+                # Try to get human-friendly value for relational fields
+                field_obj = lead._fields.get(field)
+                if field_obj and field_obj.type == 'many2one':
+                    def get_rel_display(val):
+                        if not val:
+                            return '(empty)'
+                        if isinstance(val, models.BaseModel):
+                            return getattr(val, 'display_name', None) or getattr(val, 'name', None) or str(val)
+                        elif isinstance(val, int):
+                            rec = lead.env[field_obj.comodel_name].browse(val)
+                            if rec.exists():
+                                return getattr(rec, 'display_name', None) or getattr(rec, 'name', None) or str(val)
+                            else:
+                                return str(val)
+                        return str(val)
+                    old_display = get_rel_display(old)
+                    new_display = get_rel_display(new)
+                    message += f"- <b>{field}</b>: <span style='color:#888'>{old_display}</span> → <span style='color:#007700'>{new_display}</span><br/>"
+                else:
+                    old_str = str(old) if old not in [False, None, ''] else '(empty)'
+                    new_str = str(new) if new not in [False, None, ''] else '(empty)'
+                    message += f"- <b>{field}</b>: <span style='color:#888'>{old_str}</span> → <span style='color:#007700'>{new_str}</span><br/>"
+        if action_type == 'unlink':
+            message += "• This lead/opportunity was deleted."
+        self.message_post(body=message, message_type='notification', subject='Lead Log')
     # Documents section fields
     sla = fields.Binary(string='SLA Document', help='Service Level Agreement document')
     sla_filename = fields.Char(string='SLA Filename')
@@ -206,7 +264,7 @@ class ResPartner(models.Model):
         """Override write to log document changes"""
         document_fields = {
             'sla': 'SLA Document',
-            'ncif': 'NCIF Document',
+            'ncif': 'NCIF Document`',
             'kontrak_kerja': 'Kontrak Kerja Document'
         }
         

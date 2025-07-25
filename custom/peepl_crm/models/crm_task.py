@@ -56,16 +56,22 @@ class crm_lead(models.Model):
     purpose = fields.Text(string='Purpose')
     
     # REFACTORED: Changed from Selection to Many2one
-    type_of_assessment = fields.Many2one(
-        'crm.assessment.type', 
+    type_of_assessment = fields.Many2many(
+        'crm.assessment.type',
+        'crm_lead_assessment_type_rel',
+        'lead_id',
+        'assessment_type_id',
         string='Type of Assessment',
-        help='Select the type of assessment for this lead'
+        help='Select one or more types of assessment for this lead'
     )
-    
-    assessment_language = fields.Many2one(
+
+    assessment_language = fields.Many2many(
         'crm.assessment.language',
-        string='Assessment Language', 
-        help='Select the language for the assessment'
+        'crm_lead_assessment_language_rel',
+        'lead_id',
+        'assessment_language_id',
+        string='Assessment Language',
+        help='Select one or more languages for the assessment'
     )
     
     # Participant management
@@ -92,10 +98,11 @@ class crm_lead(models.Model):
     
     @api.onchange('type_of_assessment')
     def _onchange_type_of_assessment(self):
-        """Update purpose field when assessment type changes"""
-        if self.type_of_assessment and self.type_of_assessment.description:
-            if not self.purpose:
-                self.purpose = self.type_of_assessment.description
+        """Update purpose field when assessment type changes (Many2many)"""
+        if self.type_of_assessment:
+            descriptions = [desc for desc in self.type_of_assessment.mapped('description') if isinstance(desc, str) and desc]
+            if descriptions and not self.purpose:
+                self.purpose = ', '.join(descriptions)
     
     @api.onchange('has_participant_data')
     def _onchange_has_participant_data(self):

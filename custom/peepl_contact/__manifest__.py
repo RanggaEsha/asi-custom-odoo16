@@ -54,12 +54,13 @@
     'version': '16.0.3.0.0',
 
     # Dependencies
-    'depends': ['base', 'contacts', 'mail'],
+    'depends': ['base', 'contacts', 'mail', 'crm'],
 
     # Data files
     'data': [
         'security/ir.model.access.csv',
         'views/views.xml',
+        'views/res_partner.xml',
         'data/ir_cron.xml',
     ],
     

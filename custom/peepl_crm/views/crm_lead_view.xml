@@ -155,14 +155,12 @@
                             <field name="test_finish_date" class="oe_inline" style="width: 45%;"/>
                         </div>
                         
-                        <!-- REFACTORED: Many2one field with options -->
+                        <!-- REFACTORED: Many2many field with options -->
                         <label for="type_of_assessment" string="Type of Assessment" colspan="1"/>
                         <div colspan="3">
-                            <field name="type_of_assessment" 
-                                class="oe_inline" 
-                                style="width: 300px; min-width: 300px;"
-                                options="{'no_create_edit': False, 'no_create': False}"
-                                context="{'form_view_ref': 'your_module.crm_assessment_type_form_view'}"/>
+                            <field name="type_of_assessment" widget="many2many_tags"
+    style="width: 300px; min-width: 300px;"
+    options="{'color_field': 'color', 'no_create_edit': False, 'no_create': False}"/>
                             <button name="%(action_crm_assessment_type)d" 
                                     type="action" 
                                     icon="fa-cog" 
@@ -171,14 +169,13 @@
                                     style="margin-left: 5px;"/>
                         </div>
                         
-                        <!-- REFACTORED: Many2one field with options -->
+                        <!-- REFACTORED: Many2many field with options -->
                         <label for="assessment_language" string="Assessment Language" colspan="1"/>
                         <div colspan="3">
-                            <field name="assessment_language" 
-                                class="oe_inline" 
-                                style="width: 300px; min-width: 300px;"
-                                options="{'no_create_edit': False, 'no_create': False}"
-                                context="{'form_view_ref': 'your_module.crm_assessment_language_form_view'}"/>
+                            <field name="assessment_language" widget="many2many_tags"
+    style="width: 300px; min-width: 300px;"
+    options="{'color_field': 'color', 'no_create_edit': False, 'no_create': False}"
+    context="{'form_view_ref': 'your_module.crm_assessment_language_form_view'}"/>
                             <button name="%(action_crm_assessment_language)d" 
                                     type="action" 
                                     icon="fa-cog" 

@@ -121,7 +121,7 @@ class AssessmentType(models.Model):
     code = fields.Char(string='Code', help='Internal code for identification')
     active = fields.Boolean(string='Active', default=True)
     sequence = fields.Integer(string='Sequence', default=10, help='Order of appearance')
-    color = fields.Integer(string='Color', help='Color for display purposes')
+    color = fields.Integer(string='Color', default=0, help='Tag color index for display')
     
     # Statistical fields
     lead_count = fields.Integer(string='Number of Leads', compute='_compute_lead_count', store=True)
@@ -166,7 +166,7 @@ class AssessmentLanguage(models.Model):
     description = fields.Text(string='Description', translate=True)
     active = fields.Boolean(string='Active', default=True)
     sequence = fields.Integer(string='Sequence', default=10, help='Order of appearance')
-    color = fields.Integer(string='Color', help='Color for display purposes')
+    color = fields.Integer(string='Color', default=0, help='Tag color index for display')
     
     # Statistical fields
     lead_count = fields.Integer(string='Number of Leads', compute='_compute_lead_count', store=True)
