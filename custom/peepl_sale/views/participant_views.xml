@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_participant_form_inherit_done" model="ir.ui.view">
+        <field name="name">participant.form.inherit.done</field>
+        <field name="model">participant</field>
+        <field name="inherit_id" ref="peepl_participant.participant_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <header>
+                    <button name="action_mark_completed" 
+                            type="object" 
+                            string="Mark Test Completed" 
+                            class="btn-primary"
+                            attrs="{'invisible': [('test_completed', '=', True)]}"/>
+                    <button name="action_mark_incomplete" 
+                            type="object" 
+                            string="Mark Test Incomplete" 
+                            class="btn-secondary"
+                            attrs="{'invisible': [('test_completed', '=', False)]}"/>
+                    <field name="test_completed" widget="boolean_toggle" 
+                            options="{'autosave': True}"/>
+                </header>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- inherit participant tree -->
+    <record id="view_participant_tree_inherit_done" model="ir.ui.view">
+        <field name="name">participant.tree.inherit.done</field>
+        <field name="model">participant</field>
+        <field name="inherit_id" ref="peepl_participant.participant_tree_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//tree" position="inside">
+                <field name="sale_line_id" optional="hide"/>
+                <field name="order_partner_id" invisible="1"/>
+                <field name="test_completed"/>
+                <field name="completion_date"/>
+                <field name="unit_price" widget="monetary" optional="hide"/>
+                <field name="currency_id" invisible="1"/>
+                <button name="action_mark_completed" 
+                        type="object" 
+                        string="Mark Completed" 
+                        class="btn-success"
+                        attrs="{'invisible': [('test_completed', '=', True)]}"
+                        icon="fa-check"/>
+                <button name="action_mark_incomplete" 
+                        type="object" 
+                        string="Mark Incomplete" 
+                        class="btn-warning"
+                        attrs="{'invisible': [('test_completed', '=', False)]}"
+                        icon="fa-undo"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

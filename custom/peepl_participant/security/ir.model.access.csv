@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_participant_user,access_participant_user,model_participant,base.group_user,1,1,1,1
+access_participant_salesperson,access_participant_salesperson,model_participant,sales_team.group_sale_salesman,1,1,1,1
+access_participant_manager,access_participant_manager,model_participant,sales_team.group_sale_manager,1,1,1,1
+access_assessment_type_user,crm.assessment.type.user,model_assessment_type,base.group_user,1,1,1,0
+access_assessment_type_manager,crm.assessment.type.manager,model_assessment_type,sales_team.group_sale_manager,1,1,1,1
+access_assessment_language_user,crm.assessment.language.user,model_assessment_language,base.group_user,1,1,1,0
+access_assessment_language_manager,crm.assessment.language.manager,model_assessment_language,sales_team.group_sale_manager,1,1,1,1

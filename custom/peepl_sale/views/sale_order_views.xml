@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Inherit existing Sale Order Line Tree View -->
+        <record id="sale_order_line_view_tree_inherit_participant" model="ir.ui.view">
+            <field name="name">sale.order.line.tree.participant</field>
+            <field name="model">sale.order.line</field>
+            <field name="inherit_id" ref="sale.view_order_line_tree"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='qty_invoiced']" position="after">
+                    <field name="qty_delivered_method" invisible="1"/>
+                    <field name="participants_count" 
+                           string="Participants" 
+                           attrs="{'invisible': [('qty_delivered_method', '!=', 'participants')]}"/>
+                    <field name="completed_participants_count" 
+                           string="Completed" 
+                           attrs="{'invisible': [('qty_delivered_method', '!=', 'participants')]}"/>
+                </xpath>
+            </field>
+        </record>
+
+        <!-- Sale Order Line Form View inheritance removed due to missing base view -->
+
+        <!-- Inherit Sale Order Form View to enhance participant features -->
+        <record id="sale_order_form_inherit_participant_enhanced" model="ir.ui.view">
+            <field name="name">sale.order.form.participant.enhanced</field>
+            <field name="model">sale.order</field>
+            <field name="inherit_id" ref="sale.view_order_form"/>
+            <field name="arch" type="xml">
+                <!-- Add participant button in header if has_participant_data is True -->
+                <xpath expr="//header" position="inside">
+                    <button name="action_view_participants" 
+                            type="object" 
+                            string="View Participants" 
+                            class="btn-secondary"
+                            attrs="{'invisible': [('participant_count', '=', 0)]}"
+                            groups="peepl_sale.group_project_participant"/>
+                </xpath>
+
+                <!-- Add participant stats after partner_id -->
+                <xpath expr="//field[@name='partner_id']" position="after">
+                    <field name="participant_count" invisible="1"/>
+                    <field name="is_product_participant" invisible="1"/>
+                </xpath>
+
+                <!-- Add participant tab in the notebook if has participant data -->
+                <xpath expr="//page[@name='other_information']" position="after">
+                    <page name="participants" 
+                          string="Participants" 
+                          attrs="{'invisible': [('has_participant_data', '=', False)]}"
+                          groups="peepl_sale.group_project_participant">
+                        <group>
+                            <group>
+                                <field name="test_start_date"/>
+                                <field name="test_finish_date"/>
+                            </group>
+                            <group>
+                                <button name="action_mark_all_participants_completed"
+                                        type="object"
+                                        string="Mark All Completed"
+                                        class="btn-success"
+                                        attrs="{'invisible': [('participant_count', '=', 0)]}"/>
+                            </group>
+                        </group>
+                        <group string="Assessment Details">
+                            <field name="type_of_assessment" widget="many2many_tags"/>
+                            <field name="assessment_language" widget="many2many_tags"/>
+                            <field name="purpose"/>
+                        </group>
+                        <field name="participant_ids" 
+                               context="{'default_sale_order_id': id}"
+                               mode="tree">
+                            <tree editable="bottom" decoration-success="test_completed">
+                                <field name="sequence" widget="handle"/>
+                                <field name="first_name"/>
+                                <field name="last_name"/>
+                                <field name="gender"/>
+                                <field name="email_address" widget="email"/>
+                                <field name="mobile_phone" widget="phone"/>
+                                <field name="job_title_requiring_assessment"/>
+                                <field name="position_level"/>
+                                <field name="sale_line_id" 
+                                       domain="[('order_id', '=', parent.id), ('qty_delivered_method', '=', 'participants')]"
+                                       optional="show"/>
+                                <field name="test_completed"/>
+                                <field name="completion_date" readonly="1"/>
+                                <button name="action_mark_completed" 
+                                        type="object" 
+                                        string="Complete" 
+                                        class="btn-success"
+                                        attrs="{'invisible': [('test_completed', '=', True)]}"
+                                        icon="fa-check"/>
+                                <button name="action_mark_incomplete" 
+                                        type="object" 
+                                        string="Incomplete" 
+                                        class="btn-warning"
+                                        attrs="{'invisible': [('test_completed', '=', False)]}"
+                                        icon="fa-undo"/>
+                            </tree>
+                        </field>
+                    </page>
+                </xpath>
+            </field>
+        </record>
+
+        <!-- Inherit Sale Order Tree View to show participant info -->
+        <record id="sale_order_tree_inherit_participant" model="ir.ui.view">
+            <field name="name">sale.order.tree.participant</field>
+            <field name="model">sale.order</field>
+            <field name="inherit_id" ref="sale.view_quotation_tree"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='amount_total']" position="after">
+                    <field name="participant_count" 
+                           string="Participants"
+                           attrs="{'invisible': [('has_participant_data', '=', False)]}"/>
+                    <field name="has_participant_data" invisible="1"/>
+                </xpath>
+            </field>
+        </record>
+
+    </data>
+</odoo>

@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Inherit Project Form View -->
+        <record id="project_project_view_form_inherit_participant" model="ir.ui.view">
+            <field name="name">project.project.form.participant</field>
+            <field name="model">project.project</field>
+            <field name="inherit_id" ref="project.edit_project"/>
+            <field name="arch" type="xml">
+                <!-- Add participant information in project header -->
+                <xpath expr="//div[@name='button_box']" position="inside">
+                    <button name="action_view_participants"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-users"
+                            attrs="{'invisible': [('is_participant_based', '=', False)]}"
+                            groups="peepl_sale.group_project_participant">
+                        <div class="o_field_widget o_stat_info">
+                            <span class="o_stat_value">
+                                <field name="completed_participants_count"/>
+                                /
+                                <field name="participant_count"/>
+                            </span>
+                            <span class="o_stat_text">Participants</span>
+                        </div>
+                    </button>
+                </xpath>
+
+                <!-- Add participants tab -->
+                <xpath expr="//notebook" position="inside">
+                    <page name="participants" 
+                          string="Participants" 
+                          attrs="{'invisible': [('is_participant_based', '=', False)]}"
+                          groups="peepl_sale.group_project_participant">
+                        <group>
+                            <group>
+                                <button name="action_mark_all_participants_done"
+                                        type="object"
+                                        string="Mark All Complete"
+                                        class="btn-success"
+                                        attrs="{'invisible': [('participant_count', '=', 0)]}"/>
+                            </group>
+                        </group>
+                        <field name="participant_ids" context="{'default_project_id': id}">
+                            <tree editable="bottom" decoration-success="done">
+                                <field name="sequence" widget="handle"/>
+
+                                <field name="first_name"/>
+                                <field name="email_address" widget="email"/>
+                                <field name="mobile_phone" widget="phone"/>
+                                <field name="sale_line_id" readonly="1"/>
+                                <field name="done"/>
+                                <field name="done_date" readonly="1"/>
+                                <button name="action_mark_completed" 
+                                        type="object" 
+                                        string="Complete" 
+                                        class="btn-success"
+                                        attrs="{'invisible': [('done', '=', True)]}"
+                                        icon="fa-check"/>
+                                <button name="action_mark_undone" 
+                                        type="object" 
+                                        string="Undo" 
+                                        class="btn-warning"
+                                        attrs="{'invisible': [('done', '=', False)]}"
+                                        icon="fa-undo"/>
+                            </tree>
+                        </field>
+                    </page>
+                </xpath>
+
+                <!-- Add computed fields -->
+                <xpath expr="//field[@name='partner_id']" position="after">
+                    <field name="is_participant_based" invisible="1"/>
+                </xpath>
+            </field>
+        </record>
+
+        <!-- Inherit Project Tree View -->
+        <record id="project_project_view_tree_inherit_participant" model="ir.ui.view">
+            <field name="name">project.project.tree.participant</field>
+            <field name="model">project.project</field>
+            <field name="inherit_id" ref="project.view_project"/>
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='user_id']" position="after">
+                    <field name="participant_count" 
+                           string="Participants"
+                           attrs="{'invisible': [('is_participant_based', '=', False)]}"/>
+                    <field name="completed_participants_count" 
+                           string="Completed"
+                           attrs="{'invisible': [('is_participant_based', '=', False)]}"/>
+                    <field name="is_participant_based" invisible="1"/>
+                </xpath>
+            </field>
+        </record>
+
+        <!-- Participant-specific project list view -->
+        <record id="project_participant_view_tree" model="ir.ui.view">
+            <field name="name">project.participant.project.tree</field>
+            <field name="model">project.project</field>
+            <field name="arch" type="xml">
+                <tree string="Projects with Participants" 
+                      decoration-success="completed_participants_count == participant_count and participant_count > 0"
+                      decoration-warning="completed_participants_count > 0 and completed_participants_count &lt; participant_count">
+                    <field name="name"/>
+                    <field name="partner_id"/>
+                    <field name="sale_line_id"/>
+                    <field name="participant_count"/>
+                    <field name="completed_participants_count"/>
+                    <field name="user_id"/>
+                    <field name="stage_id"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Action for Projects with Participants -->
+        <record id="action_project_participant_projects" model="ir.actions.act_window">
+            <field name="name">Projects with Participants</field>
+            <field name="res_model">project.project</field>
+            <field name="view_mode">tree,form</field>
+            <field name="domain">[('is_participant_based', '=', True)]</field>
+            <field name="view_id" ref="project_participant_view_tree"/>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No participant-based projects found.
+                </p>
+                <p>
+                    Projects with participant-based products will appear here
+                    when they are created from sales orders.
+                </p>
+            </field>
+        </record>
+
+        <!-- Menu for Participant Projects -->
+        <menuitem id="menu_project_participant_projects"
+                  name="Participant Projects"
+                  parent="project.menu_main_pm"
+                  action="action_project_participant_projects"
+                  sequence="25"
+                  groups="peepl_sale.group_project_participant"/>
+
+    </data>
+</odoo>

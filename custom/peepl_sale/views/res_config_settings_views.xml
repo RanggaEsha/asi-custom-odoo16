@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Inherit Project Settings -->
+        <record id="res_config_settings_view_form_inherit_participant" model="ir.ui.view">
+            <field name="name">res.config.settings.form.participant</field>
+            <field name="model">res.config.settings</field>
+            <field name="inherit_id" ref="project.res_config_settings_view_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//div[contains(@class, 'o_settings_container')]" position="inside">
+                    <div class="o_setting_box" id="participant_invoicing">
+                        <div class="o_setting_left_pane">
+                            <field name="group_project_participant"/>
+                        </div>
+                        <div class="o_setting_right_pane">
+                            <label for="group_project_participant"/>
+                            <div class="text-muted">
+                                Enable invoicing based on participant completion in projects
+                            </div>
+                            <div class="content-group" attrs="{'invisible': [('group_project_participant', '=', False)]}">
+                                <div class="mt16">
+                                    <p class="text-muted">
+                                        When enabled, you can create products with participant-based invoicing.
+                                        Invoice amounts will be calculated based on the number of participants
+                                        who have completed their tests or activities.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>
