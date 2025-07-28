@@ -13,14 +13,14 @@
                   name="Configuration" 
                   parent="menu_audit_root"
                   groups="peepl_audit_session.group_audit_manager"
-                  sequence="10"/>
+                  sequence="30"/>
 
         <menuitem id="menu_audit_config" 
                   name="Audit Settings" 
                   parent="menu_audit_configuration"
                   action="action_audit_config"
                   groups="peepl_audit_session.group_audit_manager"
-                  sequence="10"/>
+                  sequence="30"/>
 
         <!-- Logs Menu -->
         <menuitem id="menu_audit_logs" 
@@ -46,7 +46,7 @@
         <menuitem id="menu_audit_sessions" 
                   name="User Sessions" 
                   parent="menu_audit_root"
-                  sequence="30"/>
+                  sequence="10"/>
 
         <menuitem id="menu_audit_session" 
                   name="All Sessions" 
