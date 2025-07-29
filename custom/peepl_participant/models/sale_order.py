@@ -1,20 +1,11 @@
-
 # Part of BrowseInfo. See LICENSE file for full copyright and licensing details.
 
-from odoo.tools.translate import _
-from datetime import datetime, timedelta, date
-from dateutil.relativedelta import relativedelta
-from odoo import tools, api
-from odoo.tools import DEFAULT_SERVER_DATE_FORMAT
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
-import logging
-from odoo.osv import  osv
-from odoo import SUPERUSER_ID
 
 
 class SaleOrder(models.Model):
-    """ Sale Order Case """
+    """ Sale Order """
     _inherit = "sale.order"
 
     # Participant management
@@ -23,7 +14,7 @@ class SaleOrder(models.Model):
     test_finish_date = fields.Date(string='Test Finish Date')
     purpose = fields.Text(string='Purpose')
     
-    # REFACTORED: Changed from Selection to Many2one
+    # Assessment configuration
     type_of_assessment = fields.Many2many(
         'assessment.type',
         'sale_order_assessment_type_rel',
@@ -46,32 +37,27 @@ class SaleOrder(models.Model):
     participant_ids = fields.One2many('participant', 'sale_order_id', string='Participants')
     participant_count = fields.Integer(string='Participant Count', compute='_compute_participant_count')
     
-    def _compute_participant_count(self):
-        """Compute participant count"""
-        for record in self:
-            record.participant_count = self.env['participant'].search_count([('sale_order_id', '=', record.id)])
-
     @api.depends('participant_ids')
     def _compute_participant_count(self):
-        """Count participants for this sale order"""
+        """Count participants for this lead"""
         for record in self:
             record.participant_count = len(record.participant_ids)
     
     def action_view_participants(self):
-        """Open participants view for this sale order"""
+        """Open participants view for this lead"""
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
             'name': f'Participants - {self.name}',
             'res_model': 'participant',
-            'view_mode': 'tree,form',
+            'view_mode': 'tree',
             'domain': [('sale_order_id', '=', self.id)],
             'context': {'default_sale_order_id': self.id},
         }
     
     @api.onchange('type_of_assessment')
     def _onchange_type_of_assessment(self):
-        """Update purpose field when assessment type changes (Many2many)"""
+        """Update purpose field when assessment type changes"""
         if self.type_of_assessment:
             descriptions = [desc for desc in self.type_of_assessment.mapped('description') if isinstance(desc, str) and desc]
             if descriptions and not self.purpose:
@@ -87,51 +73,10 @@ class SaleOrder(models.Model):
             self.test_finish_date = False
             self.purpose = False
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        """Update assessment type/language counts when creating leads"""
-        records = super().create(vals_list)
-        self._update_assessment_counts(records)
-        return records
-    
-    def write(self, vals):
-        """Update assessment type/language counts when updating leads"""
-        old_assessment_types = self.mapped('type_of_assessment')
-        old_assessment_languages = self.mapped('assessment_language')
-        
-        result = super().write(vals)
-        
-        if 'type_of_assessment' in vals or 'assessment_language' in vals:
-            new_assessment_types = self.mapped('type_of_assessment')
-            new_assessment_languages = self.mapped('assessment_language')
-            
-            # Update counts for old and new assessment types/languages
-            all_types = (old_assessment_types | new_assessment_types).filtered(lambda x: x)
-            all_languages = (old_assessment_languages | new_assessment_languages).filtered(lambda x: x)
-            
-            self._update_specific_counts(all_types, all_languages)
-        
-        return result
-    
+    @api.model
     def unlink(self):
-        """Update assessment type/language counts when deleting leads"""
-        assessment_types = self.mapped('type_of_assessment').filtered(lambda x: x)
-        assessment_languages = self.mapped('assessment_language').filtered(lambda x: x)
-        
-        result = super().unlink()
-        
-        self._update_specific_counts(assessment_types, assessment_languages)
-        return result
+        for record in self:
+            # remove sale_order_id from participants and set to default state
+            record.participant_ids.write({'sale_order_id': False})
+        return super().unlink()
     
-    def _update_assessment_counts(self, records):
-        """Helper method to update assessment counts"""
-        assessment_types = records.mapped('type_of_assessment').filtered(lambda x: x)
-        assessment_languages = records.mapped('assessment_language').filtered(lambda x: x)
-        self._update_specific_counts(assessment_types, assessment_languages)
-    
-    def _update_specific_counts(self, assessment_types, assessment_languages):
-        """Update lead counts for specific assessment types and languages"""
-        if assessment_types:
-            assessment_types._compute_lead_count()
-        if assessment_languages:
-            assessment_languages._compute_lead_count()

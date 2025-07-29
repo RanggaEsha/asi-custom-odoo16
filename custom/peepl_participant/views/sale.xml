@@ -6,17 +6,18 @@
             <field name="inherit_id" ref="sale.view_order_form" />
             <field name="arch" type="xml">
                 <div name="button_box" position="inside">
-                    <button class="oe_stat_button" type="action" name="%(action_view_sale_order_participants)d"
+                    <button class="oe_stat_button" type="object" name="action_view_participants"
                                 context="{'default_sale_order_id': active_id}"
                                 icon="fa-users"
                                 attrs="{'invisible': [('has_participant_data', '=', False)]}">
                                 <field string="Participants" name="participant_count" widget="statinfo"/>
-                            </button>
+                    </button>
                 </div>
 
                  <!-- Add participant data field using xpath -->
                 <xpath expr="//field[@name='payment_term_id']" position="after">
-                    <field name="has_participant_data" string="Has Participant Data"/>
+                    <field name="participant_count" invisible="1"/>
+                    <field name="has_participant_data" string="Has Participant Data" attrs="{'readonly': [('participant_count', '>', 0)]}"/>
                 </xpath>
 
                 <!-- OPTION 3: Add to existing Extra Info tab -->

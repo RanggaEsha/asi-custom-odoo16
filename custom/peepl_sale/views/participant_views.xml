@@ -1,79 +1,63 @@
-<?xml version="1.0" encoding="utf-8"?>
+<!-- <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
 
-        <!-- Create new participant form view for invoicing -->
+        <!-- Enhanced participant form view for invoicing
         <record id="participant_form_view_invoicing" model="ir.ui.view">
             <field name="name">participant.form.invoicing</field>
             <field name="model">participant</field>
+            <field name="inherit_id" ref="peepl_participant.participant_form_view"/>
             <field name="arch" type="xml">
-                <form string="Participant">
-                    <header>
-                        <field name="state" widget="statusbar"/>
-                    </header>
-                    <sheet>
-                        <div class="oe_title">
-                            <h1>
-                                <field name="first_name" placeholder="First Name" style="width: 40%"/>
-                                <field name="last_name" placeholder="Last Name" style="width: 40%; margin-left: 10px"/>
-                            </h1>
-                            <h3>
-                                <field name="job_title_requiring_assessment" placeholder="Job Title"/>
-                            </h3>
-                        </div>
-                        <group>
-                            <group string="Personal Information">
-                                <field name="gender"/>
-                                <field name="email_address" widget="email"/>
-                                <field name="mobile_phone" widget="phone"/>
-                                <field name="position_level"/>
-                            </group>
-                            <group string="Order Information">
-                        <field name="sale_order_id"/>
-                        <field name="order_partner_id" invisible="1"/>
-                        <field name="sale_line_id"/>
-                                <field name="project_id" readonly="1"/>
-                                <field name="sequence"/>
-                            </group>
-                        </group>
-                        <group string="Test Completion Status">
-                            <group>
-                                <field name="completion_date" attrs="{'invisible': [('state', '!=', 'confirmed')]}" readonly="1"/>
-                                <field name="unit_price" widget="monetary" readonly="1"/>
-                                <field name="currency_id" invisible="1"/>
-                            </group>
-                        </group>
-                        <group string="Additional Information">
-                            <field name="notes"/>
-                        </group>
-                    </sheet>
-                </form>
+                
+                <!-- Add invoicing information after position_level -->
+                <xpath expr="//field[@name='sequence']" position="after">
+                    <field name="sale_line_id"/>
+                    <field name="project_id" readonly="1"/>
+                    <field name="unit_price" widget="monetary" readonly="1"/>
+                    <field name="currency_id" invisible="1"/>
+                    <field name="order_partner_id" invisible="1"/>
+                    <field name="full_name" invisible="1"/>
+                </xpath>
+
             </field>
         </record>
 
-        <!-- Create new participant tree view for invoicing -->
+        <!-- Enhanced participant tree view for invoicing -->
         <record id="participant_tree_view_invoicing" model="ir.ui.view">
             <field name="name">participant.tree.invoicing</field>
             <field name="model">participant</field>
+            <field name="inherit_id" ref="peepl_participant.participant_tree_view"/>
             <field name="arch" type="xml">
-                <tree string="Participants" 
-                      decoration-success="state == 'confirmed'" 
-                      decoration-muted="state == 'not_yet_confirmed'">
-                    <field name="sequence" widget="handle"/>
-                    <field name="first_name"/>
-                    <field name="last_name"/>
-                    <field name="gender"/>
-                    <field name="email_address" widget="email"/>
-                    <field name="mobile_phone" widget="phone"/>
-                    <field name="job_title_requiring_assessment"/>
-                    <field name="position_level"/>
-                    <field name="sale_order_id"/>
-                    <field name="order_partner_id" invisible="1"/>
+                
+                <!-- Add invoicing columns -->
+                <xpath expr="//field[@name='completion_date']" position="after">
                     <field name="sale_line_id" optional="hide"/>
-                    <field name="completion_date"/>
                     <field name="unit_price" widget="monetary" optional="hide"/>
                     <field name="currency_id" invisible="1"/>
-                </tree>
+                    <field name="order_partner_id" invisible="1"/>
+                </xpath>
+
+                <!-- Add action buttons for quick state changes -->
+                <xpath expr="//field[@name='sale_order_id']" position="after">
+                    <button name="action_set_confirmed" 
+                            type="object" 
+                            string="✓" 
+                            title="Mark Test Completed"
+                            class="btn-success btn-sm"
+                            attrs="{'invisible': [('state', '=', 'confirmed')]}"/>
+                    <button name="action_set_rescheduled" 
+                            type="object" 
+                            string="⟳" 
+                            title="Reschedule Test"
+                            class="btn-warning btn-sm"
+                            attrs="{'invisible': [('state', '=', 'rescheduled')]}"/>
+                    <button name="action_set_cancelled" 
+                            type="object" 
+                            string="✗" 
+                            title="Cancel Test"
+                            class="btn-danger btn-sm"
+                            attrs="{'invisible': [('state', '=', 'cancelled')]}"/>
+                </xpath>
             </field>
         </record>
 
@@ -86,7 +70,7 @@
                 (0, 0, {'view_mode': 'tree', 'view_id': ref('participant_tree_view_invoicing')}),
                 (0, 0, {'view_mode': 'form', 'view_id': ref('participant_form_view_invoicing')})]"/>
             <field name="domain">[('sale_line_id', '!=', False)]</field>
-            <field name="context">{"group_by": ["sale_order_id"]}</field>
+            <field name="context">{"group_by": ["sale_order_id"], "search_default_not_confirmed": 1}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
                     No participants found for invoicing.
@@ -98,7 +82,84 @@
             </field>
         </record>
 
-        <!-- Menu Item -->
+        <!-- Kanban view with focus on test completion -->
+        <record id="participant_kanban_view_invoicing" model="ir.ui.view">
+            <field name="name">participant.kanban.invoicing</field>
+            <field name="model">participant</field>
+            <field name="arch" type="xml">
+                <kanban class="o_kanban_mobile">
+                    <field name="first_name"/>
+                    <field name="last_name"/>
+                    <field name="state"/>
+                    <field name="sale_order_id"/>
+                    <field name="unit_price"/>
+                    <field name="job_title_requiring_assessment"/>
+                    <templates>
+                        <t t-name="kanban-box">
+                            <div class="oe_kanban_card oe_kanban_global_click" t-attf-class="#{record.state.value == 'confirmed' ? 'bg-success-light' : record.state.value == 'cancelled' ? 'bg-danger-light' : ''}">
+                                <div class="row">
+                                    <div class="col-8">
+                                        <strong><t t-esc="record.first_name.value"/> <t t-esc="record.last_name.value"/></strong>
+                                    </div>
+                                    <div class="col-4">
+                                        <span class="badge" t-attf-class="badge-#{record.state.value == 'confirmed' ? 'success' : record.state.value == 'rescheduled' ? 'warning' : record.state.value == 'cancelled' ? 'danger' : 'secondary'}">
+                                            <t t-if="record.state.value == 'confirmed'">✓ Done</t>
+                                            <t t-elif="record.state.value == 'rescheduled'">⟳ Rescheduled</t>
+                                            <t t-elif="record.state.value == 'cancelled'">✗ Cancelled</t>
+                                            <t t-else="">⏱ Pending</t>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-12">
+                                        <span class="text-muted">Test: </span><field name="job_title_requiring_assessment"/>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-8">
+                                        <span class="text-muted">Order: </span><field name="sale_order_id"/>
+                                    </div>
+                                    <div class="col-4 text-right">
+                                        <field name="unit_price" widget="monetary"/>
+                                    </div>
+                                </div>
+                                <div class="row mt-2" t-if="record.state.value != 'confirmed'">
+                                    <div class="col-12">
+                                        <button name="action_set_confirmed" type="object" class="btn btn-success btn-sm btn-block">
+                                            Mark Test Completed
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </templates>
+                </kanban>
+            </field>
+        </record>
+
+        <!-- Add kanban to action views -->
+        <record id="action_participant_invoicing_kanban" model="ir.actions.act_window">
+            <field name="name">Test Completion Dashboard</field>
+            <field name="res_model">participant</field>
+            <field name="view_mode">kanban,tree,form</field>
+            <field name="view_ids" eval="[(5, 0, 0),
+                (0, 0, {'view_mode': 'kanban', 'view_id': ref('participant_kanban_view_invoicing')}),
+                (0, 0, {'view_mode': 'tree', 'view_id': ref('participant_tree_view_invoicing')}),
+                (0, 0, {'view_mode': 'form', 'view_id': ref('participant_form_view_invoicing')})]"/>
+            <field name="domain">[('sale_line_id', '!=', False)]</field>
+            <field name="context">{"search_default_not_confirmed": 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No test participants found!
+                </p>
+                <p>
+                    Participants with tests to complete will appear here.
+                    Mark them as completed to trigger invoicing.
+                </p>
+            </field>
+        </record>
+
+        <!-- Menu Items -->
         <menuitem id="menu_participant_invoicing"
                   name="Participant Invoicing"
                   parent="sale.sale_menu_root"
@@ -106,5 +167,12 @@
                   sequence="35"
                   groups="peepl_sale.group_project_participant"/>
 
+        <menuitem id="menu_test_completion_dashboard"
+                  name="Test Completion Dashboard"
+                  parent="sale.sale_menu_root"
+                  action="action_participant_invoicing_kanban"
+                  sequence="36"
+                  groups="peepl_sale.group_project_participant"/> -->
+
     </data>
-</odoo>
+</odoo> -->

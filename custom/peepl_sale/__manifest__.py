@@ -71,7 +71,7 @@ Technical Details:
         # 'data/demo_data.xml',
         
         # Views
-        'views/participant_views.xml',
+        # 'views/participant_views.xml',
         'views/sale_order_views.xml',
         'views/res_config_settings_views.xml',
         'views/project_views.xml',

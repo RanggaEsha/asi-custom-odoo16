@@ -26,24 +26,6 @@ class Participant(models.Model):
         help='Project associated with the sale order line'
     )
     
-    # State tracking for participant confirmation
-    state = fields.Selection([
-        ('not_yet_confirmed', 'Not Yet Confirmed'),
-        ('confirmed', 'Confirmed'),
-        ('rescheduled', 'Rescheduled'),
-        ('cancelled', 'Cancelled'),
-    ],
-        string='State',
-        default='not_yet_confirmed',
-        required=True,
-        help='Current confirmation state of the participant.'
-    )
-    completion_date = fields.Datetime(
-        string='Completion/Confirmation Date',
-        readonly=True,
-        help='Date and time when the state was set to Confirmed.'
-    )
-    
     # Related fields for domain filtering and pricing
     order_partner_id = fields.Many2one(
         related='sale_order_id.partner_id', 
@@ -98,14 +80,19 @@ class Participant(models.Model):
             else:
                 participant.unit_price = 0.0
 
+
     def write(self, vals):
-        # Track completion/confirmation date only when state is set to confirmed
-        if 'state' in vals:
-            if vals['state'] == 'confirmed':
-                vals['completion_date'] = fields.Datetime.now()
-            else:
-                vals['completion_date'] = False
+        """Allow only state changes if SO is confirmed; block all other edits."""
+        allowed_keys = {'state', 'completion_date', 'notes','sale_line_id', 'project_id', 'lead_id', 'sale_order_id'}
+        for participant in self:
+            if participant.sale_order_id and participant.sale_order_id.state == 'sale':
+                if set(vals.keys()) - allowed_keys:
+                    raise ValidationError(_(
+                        'Cannot modify participant data when the sale order is confirmed.'
+                    ))
+
         result = super().write(vals)
+
         # Update sale order line delivered quantity when state changes to confirmed
         if 'state' in vals and vals['state'] == 'confirmed':
             sale_lines = self.mapped('sale_line_id').filtered(
@@ -113,38 +100,34 @@ class Participant(models.Model):
             )
             if sale_lines:
                 sale_lines._compute_qty_delivered()
+
+        # Post message on related sale order when state changes
+        if 'state' in vals:
+            for participant in self:
+                if participant.sale_order_id:
+                    old_state = self._get_state_display(vals.get('state'))
+                    message = _('Participant %s state changed to %s.') % (participant.full_name, old_state)
+                    participant.sale_order_id.message_post(body=message)
         return result
 
-    def action_change_state(self, new_state):
-        """Action to change participant state via button"""
-        self.ensure_one()
-        valid_states = dict(self._fields['state'].selection)
-        if new_state not in valid_states:
-            raise ValidationError(_('Invalid state.'))
-        old_state = self.state
-        self.write({'state': new_state})
-        # Optionally post a message on related sale order
-        if self.sale_order_id:
-            message = _(
-                'Participant %s state changed from %s to %s.'
-            ) % (
-                self.full_name,
-                dict(self._fields['state'].selection).get(old_state, old_state),
-                dict(self._fields['state'].selection).get(new_state, new_state)
-            )
-            self.sale_order_id.message_post(body=message)
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': _('Success'),
-                'message': _('State changed to %s for %s!') % (valid_states[new_state], self.full_name),
-                'type': 'success',
-                'reload': True,
-            }
-        }
 
-    # Remove action_mark_incomplete, replaced by action_change_state
+    def unlink(self):
+        # Allow deletion only if not linked to confirmed sale order, or if only state is being changed
+        allowed_keys = {'state', 'completion_date', 'notes','sale_line_id', 'project_id', 'lead_id', 'sale_order_id'}
+        for participant in self:
+            if participant.sale_order_id and participant.sale_order_id.state == 'sale':
+                # If called from a state change, allow; else block
+                # (Unlink is never called for state change, so always block)
+                raise ValidationError(_(
+                    'Cannot delete participants linked to confirmed sale orders.'
+                ))
+        return super().unlink()
+
+
+    def _get_state_display(self, state_key):
+        """Get display value for state"""
+        state_dict = dict(self._fields['state'].selection)
+        return state_dict.get(state_key, state_key)
 
     @api.constrains('sale_line_id')
     def _check_sale_line_participants_method(self):
@@ -157,24 +140,22 @@ class Participant(models.Model):
                     'to enable invoicing based on participant completion.'
                 ))
 
-    def name_get(self):
-        """Enhanced display name with state indicator"""
-        result = []
-        state_icons = {
-            'confirmed': ' ✓',
-            'rescheduled': ' ⟳',
-            'cancelled': ' ✗',
-        }
+    def action_set_confirmed(self):
+        """Override to show enhanced notification for sale orders"""
+        result = super().action_set_confirmed()
+        
+        # Update the notification for sale order context
         for participant in self:
-            name = f"{participant.first_name} {participant.last_name}".strip()
-            if participant.job_title_requiring_assessment:
-                name += f" - {participant.job_title_requiring_assessment}"
-            if participant.position_level:
-                name += f" ({participant.position_level})"
-            # Add state indicator
-            if participant.state in state_icons:
-                name += state_icons[participant.state]
-            result.append((participant.id, name))
+            if participant.sale_line_id:
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': _('Test Completed'),
+                        'message': _('Participant %s test completed! Invoice quantity updated.') % participant.full_name,
+                        'type': 'success',
+                    }
+                }
         return result
 
     @api.model

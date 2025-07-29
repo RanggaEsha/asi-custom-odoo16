@@ -30,7 +30,7 @@ class SaleOrderLine(models.Model):
         'participant', 
         'sale_line_id', 
         string='Completed Participants', 
-        domain=[('state', '=', 'confirmed')]
+        domain=[('state', '=', 'confirmed')]  # Updated to use state field
     )
     
     participants_count = fields.Integer(
@@ -50,7 +50,7 @@ class SaleOrderLine(models.Model):
         help='Automatically link sale order participants to this line when using participant delivery method'
     )
 
-    @api.depends('related_participants_ids', 'completed_participants_ids', 'all_order_participants_ids', 'auto_link_participants')
+    @api.depends('related_participants_ids', 'related_participants_ids.state', 'all_order_participants_ids', 'all_order_participants_ids.state', 'auto_link_participants')
     def _compute_participants_count(self):
         for line in self:
             if line.qty_delivered_method == 'participants':
@@ -61,7 +61,7 @@ class SaleOrderLine(models.Model):
                 else:
                     # Use specifically linked participants
                     all_participants = line.related_participants_ids
-                    completed_participants = line.completed_participants_ids
+                    completed_participants = all_participants.filtered(lambda p: p.state == 'confirmed')
                 line.participants_count = len(all_participants)
                 line.completed_participants_count = len(completed_participants)
             else:
@@ -79,7 +79,7 @@ class SaleOrderLine(models.Model):
         participant_lines.qty_delivered_method = 'participants'
         super(SaleOrderLine, self - participant_lines)._compute_qty_delivered_method()
 
-    @api.depends('qty_delivered_method', 'product_uom_qty', 'completed_participants_ids', 'all_order_participants_ids', 'auto_link_participants')
+    @api.depends('qty_delivered_method', 'product_uom_qty', 'related_participants_ids.state', 'all_order_participants_ids.state', 'auto_link_participants')
     def _compute_qty_delivered(self):
         """Override to compute delivered quantity based on participants"""
         lines_by_participants = self.filtered(lambda sol: sol.qty_delivered_method == 'participants')
@@ -94,7 +94,7 @@ class SaleOrderLine(models.Model):
                 completed_count = len(line.all_order_participants_ids.filtered(lambda p: p.state == 'confirmed'))
             else:
                 # Use specifically linked participants
-                completed_count = len(line.completed_participants_ids)
+                completed_count = len(line.related_participants_ids.filtered(lambda p: p.state == 'confirmed'))
             # For participants, we deliver the exact number of completed participants
             line.qty_delivered = completed_count
 
@@ -127,6 +127,7 @@ class SaleOrderLine(models.Model):
                     'sale_line_id': self.id,
                     'job_title_requiring_assessment': self.product_id.name,
                     'sequence': (i + 1) * 10,
+                    'state': 'not_yet_confirmed',  # Set default state
                 })
             
             if participants_to_create:
@@ -157,22 +158,23 @@ class SaleOrderLine(models.Model):
             domain = [('sale_line_id', '=', self.id)]
         
         action = {
-            'name': _('Participants - %s') % self.product_id.name,
+            'name': _('Test Participants - %s') % self.product_id.name,
             'type': 'ir.actions.act_window',
             'res_model': 'participant',
-            'view_mode': 'tree,form',
+            'view_mode': 'kanban,tree,form',
             'domain': domain,
             'context': {
                 'default_sale_order_id': self.order_id.id,
                 'default_sale_line_id': self.id,
                 'default_job_title_requiring_assessment': self.product_id.name,
+                'search_default_not_confirmed': 1,
             },
             'help': _("""
                 <p class="o_view_nocontent_smiling_face">
-                    No participants found. Let's create some!
+                    No test participants found. Let's create some!
                 </p><p>
                     Add participants who will take the test. 
-                    Mark them as completed when they finish to trigger invoicing.
+                    Mark them as test completed when they finish to trigger invoicing.
                 </p>
             """),
         }
@@ -199,6 +201,45 @@ class SaleOrderLine(models.Model):
                     'type': 'success',
                 }
             }
+
+    def action_mark_line_participants_completed(self):
+        """Mark all participants for this line as test completed"""
+        self.ensure_one()
+        
+        if self.auto_link_participants and not self.related_participants_ids:
+            participants = self.all_order_participants_ids
+        else:
+            participants = self.related_participants_ids
+        
+        incomplete_participants = participants.filtered(lambda p: p.state != 'confirmed')
+        if not incomplete_participants:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Info'),
+                    'message': _('All participants for this line have already completed their tests!'),
+                    'type': 'info',
+                }
+            }
+        
+        incomplete_participants.write({
+            'state': 'confirmed',
+            'completion_date': fields.Datetime.now()
+        })
+        
+        # This will automatically trigger qty_delivered computation
+        self._compute_qty_delivered()
+        
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Success'),
+                'message': _('%d participants marked as test completed for %s!') % (len(incomplete_participants), self.product_id.name),
+                'type': 'success',
+            }
+        }
 
     def _prepare_invoice_line(self, **optional_values):
         """Override to ensure participant-based lines use correct analytics"""

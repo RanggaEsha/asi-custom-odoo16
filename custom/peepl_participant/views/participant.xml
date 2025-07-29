@@ -7,7 +7,11 @@
             <field name="name">participant.tree</field>
             <field name="model">participant</field>
             <field name="arch" type="xml">
-                <tree string="Participants" editable="bottom" multi_edit="1">
+                <tree string="Participants" editable="bottom" 
+                      decoration-success="state == 'confirmed'" 
+                      decoration-warning="state == 'rescheduled'"
+                      decoration-danger="state == 'cancelled'"
+                      decoration-muted="state == 'not_yet_confirmed'">
                     <field name="sequence" widget="handle"/>
                     <field name="first_name" required="1"/>
                     <field name="last_name" required="1"/>
@@ -16,57 +20,20 @@
                     <field name="mobile_phone"/>
                     <field name="job_title_requiring_assessment"/>
                     <field name="position_level"/>
+                    <field name="state" widget="badge" readonly="1"
+                           decoration-success="state == 'confirmed'"
+                           decoration-warning="state == 'rescheduled'"
+                           decoration-danger="state == 'cancelled'"
+                           decoration-info="state == 'not_yet_confirmed'"/>
+                    <field name="completion_date" readonly="1"/>
                     <field name="notes"/>
                     <field name="active" optional="hide"/>
-                    <field name="lead_id" invisible="context.get('default_sale_order_id')"/>
-                    <field name="sale_order_id" invisible="context.get('default_lead_id')"/>
+                    <field name="lead_id" readonly="1"/>
+                    <field name="sale_order_id" readonly="1"/>
                 </tree>
             </field>
         </record>
 
-        <!-- Participant Form View -->
-        <record id="participant_form_view" model="ir.ui.view">
-            <field name="name">participant.form</field>
-            <field name="model">participant</field>
-            <field name="arch" type="xml">
-                <form string="Participant">
-                    <sheet>
-                        <div class="oe_button_box" name="button_box">
-                            <button name="toggle_active" type="object"
-                                    class="oe_stat_button" icon="fa-archive">
-                                <field name="active" widget="boolean_button"
-                                       options='{"terminology": "archive"}'/>
-                            </button>
-                        </div>
-                        <div class="oe_title">
-                            <h1>
-                                <div class="d-flex">
-                                    <field name="first_name" class="text-break me-2" placeholder="First Name"/>
-                                    <field name="last_name" class="text-break" placeholder="Last Name"/>
-                                </div>
-                            </h1>
-                        </div>
-                        <group>
-                            <group>
-                                <field name="gender"/>
-                                <field name="email_address"/>
-                                <field name="mobile_phone"/>
-                            </group>
-                            <group>
-                                <field name="job_title_requiring_assessment"/>
-                                <field name="position_level"/>
-                                <field name="sequence"/>
-                                <field name="lead_id" readonly="context.get('default_lead_id')"/>
-                                <field name="state" widget="statusbar"/>
-                            </group>
-                        </group>
-                        <group string="Additional Information">
-                            <field name="notes" placeholder="Additional notes about this participant..."/>
-                        </group>
-                    </sheet>
-                </form>
-            </field>
-        </record>
 
         <!-- Participant Search View -->
         <record id="participant_search_view" model="ir.ui.view">
@@ -83,15 +50,20 @@
                     <field name="lead_id"/>
                     <field name="sale_order_id"/>
                     <separator/>
+                    <filter string="Not Yet Confirmed" name="not_confirmed" domain="[('state', '=', 'not_yet_confirmed')]"/>
+                    <filter string="Confirmed" name="confirmed" domain="[('state', '=', 'confirmed')]"/>
+                    <filter string="Rescheduled" name="rescheduled" domain="[('state', '=', 'rescheduled')]"/>
+                    <filter string="Cancelled" name="cancelled" domain="[('state', '=', 'cancelled')]"/>
+                    <separator/>
                     <filter string="Active" name="active" domain="[('active', '=', True)]"/>
                     <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
                     <separator/>
                     <group expand="0" string="Group By">
-                        <filter string="Lead/Opportunity" name="lead" context="{'group_by': 'lead_id'}" attrs="{'invisible': [('lead_id', '=', False)]}"/>
-                        <filter string="Sale Order" name="sale_order" context="{'group_by': 'sale_order_id'}" attrs="{'invisible': [('sale_order_id', '=', False)]}"/>
-                        <filter string="Gender" name="gender" context="{'group_by': 'gender'}" attrs="{'invisible': [('gender', '=', False)]}"/>
-                        <filter string="Job Title" name="job_title" context="{'group_by': 'job_title_requiring_assessment'}" attrs="{'invisible': [('job_title_requiring_assessment', '=', False)]}"/>
-                        <filter string="Position Level" name="position_level" context="{'group_by': 'position_level'}" attrs="{'invisible': [('position_level', '=', False)]}"/>
+                        <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
+                        <filter string="Lead/Opportunity" name="lead" context="{'group_by': 'lead_id'}"/>
+                        <filter string="Sale Order" name="sale_order" context="{'group_by': 'sale_order_id'}"/>
+                        <filter string="Gender" name="gender" context="{'group_by': 'gender'}"/>
+                        <filter string="Job Title" name="job_title" context="{'group_by': 'job_title_requiring_assessment'}"/>
                     </group>
                 </search>
             </field>
@@ -108,18 +80,24 @@
                     <field name="email_address"/>
                     <field name="job_title_requiring_assessment"/>
                     <field name="position_level"/>
+                    <field name="state"/>
                     <field name="lead_id"/>
                     <templates>
                         <t t-name="kanban-box">
                             <div class="oe_kanban_card oe_kanban_global_click">
                                 <div class="row">
-                                    <div class="col-12">
+                                    <div class="col-8">
                                         <strong><t t-esc="record.first_name.value"/> <t t-esc="record.last_name.value"/></strong>
+                                    </div>
+                                    <div class="col-4">
+                                        <span class="badge badge-pill" t-attf-class="badge-#{record.state.value == 'confirmed' ? 'success' : record.state.value == 'rescheduled' ? 'warning' : record.state.value == 'cancelled' ? 'danger' : 'secondary'}">
+                                            <t t-esc="record.state.value"/>
+                                        </span>
                                     </div>
                                 </div>
                                 <div class="row">
                                     <div class="col-6">
-                                        <span class="text-muted">Job Title: </span><field name="job_title_requiring_assessment"/>
+                                        <span class="text-muted">Job: </span><field name="job_title_requiring_assessment"/>
                                     </div>
                                     <div class="col-6">
                                         <span class="text-muted">Level: </span><field name="position_level"/>
@@ -182,7 +160,7 @@
             <field name="res_model">participant</field>
             <field name="view_mode">tree,kanban,form</field>
             <field name="search_view_id" ref="participant_search_view"/>
-            <field name="context">{'search_default_active': 1, 'group_by': 'lead_id'}</field>
+            <field name="context">{'search_default_active': 1}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
                     Create your first participant!

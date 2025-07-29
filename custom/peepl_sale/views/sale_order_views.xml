@@ -25,70 +25,12 @@
             <field name="model">sale.order</field>
             <field name="inherit_id" ref="sale.view_order_form"/>
             <field name="arch" type="xml">
-                <!-- Add participant button in header if has_participant_data is True -->
-                <xpath expr="//header" position="inside">
-                    <button name="action_view_participants" 
-                            type="object" 
-                            string="View Participants" 
-                            class="btn-secondary"
-                            attrs="{'invisible': [('participant_count', '=', 0)]}"
-                            groups="peepl_sale.group_project_participant"/>
-                </xpath>
 
                 <!-- Add participant stats after partner_id -->
                 <xpath expr="//field[@name='partner_id']" position="after">
                     <field name="participant_count" invisible="1"/>
                     <field name="is_product_participant" invisible="1"/>
                 </xpath>
-
-                <!-- Add participant tab in the notebook if has participant data
-                <xpath expr="//page[@name='order_lines']" position="after">
-                    <page name="participants" 
-                          string="Participants" 
-                          attrs="{'invisible': [('has_participant_data', '=', False)]}"
-                          groups="peepl_sale.group_project_participant">
-                        <group>
-                            <group>
-                                <button name="action_mark_all_participants_completed"
-                                        type="object"
-                                        string="Mark All Completed"
-                                        class="btn-success"
-                                        attrs="{'invisible': [('participant_count', '=', 0)]}"/>
-                            </group>
-                        </group>
-                        <field name="participant_ids" 
-                               context="{'default_sale_order_id': id}"
-                               mode="tree">
-                            <tree editable="bottom" decoration-success="test_completed">
-                                <field name="sequence" widget="handle"/>
-                                <field name="first_name"/>
-                                <field name="last_name"/>
-                                <field name="gender"/>
-                                <field name="email_address" widget="email"/>
-                                <field name="mobile_phone" widget="phone"/>
-                                <field name="job_title_requiring_assessment"/>
-                                <field name="position_level"/>
-                                <field name="sale_line_id" 
-                                       domain="[('order_id', '=', parent.id), ('qty_delivered_method', '=', 'participants')]"
-                                       optional="show"/>
-                                <field name="test_completed"/>
-                                <field name="completion_date" readonly="1"/>
-                                <button name="action_mark_completed" 
-                                        type="object" 
-                                        string="Complete" 
-                                        class="btn-success"
-                                        attrs="{'invisible': [('test_completed', '=', True)]}"
-                                        icon="fa-check"/>
-                                <button name="action_mark_incomplete" 
-                                        type="object" 
-                                        string="Incomplete" 
-                                        class="btn-warning"
-                                        attrs="{'invisible': [('test_completed', '=', False)]}"
-                                        icon="fa-undo"/>
-                            </tree>
-                        </field>
-                    </page>
-                </xpath> -->
             </field>
         </record>
 

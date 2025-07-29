@@ -28,7 +28,7 @@ class Project(models.Model):
         compute='_compute_is_participant_based'
     )
 
-    @api.depends('participant_ids')
+    @api.depends('participant_ids', 'participant_ids.state')
     def _compute_participant_count(self):
         for project in self:
             project.participant_count = len(project.participant_ids)
@@ -49,7 +49,7 @@ class Project(models.Model):
         self.ensure_one()
         
         action = {
-            'name': _('Participants - %s') % self.name,
+            'name': _('Test Participants - %s') % self.name,
             'type': 'ir.actions.act_window',
             'res_model': 'participant',
             'view_mode': 'tree,form',
@@ -57,13 +57,14 @@ class Project(models.Model):
             'context': {
                 'default_project_id': self.id,
                 'default_sale_line_id': self.sale_line_id.id if self.sale_line_id else False,
+                'search_default_not_confirmed': 1,
             },
             'help': _("""
                 <p class="o_view_nocontent_smiling_face">
-                    No participants found. Let's create some!
+                    No test participants found. Let's create some!
                 </p><p>
                     Add participants who will take the test. 
-                    Mark them as completed when they finish.
+                    Mark them as test completed when they finish.
                 </p>
             """),
         }
@@ -71,7 +72,7 @@ class Project(models.Model):
         return action
 
     def action_mark_all_participants_completed(self):
-        """Action to mark all participants as completed"""
+        """Action to mark all participants as test completed"""
         self.ensure_one()
         
         incomplete_participants = self.participant_ids.filtered(lambda p: p.state != 'confirmed')
@@ -81,24 +82,29 @@ class Project(models.Model):
                 'tag': 'display_notification',
                 'params': {
                     'title': _('Info'),
-                    'message': _('All participants are already confirmed!'),
+                    'message': _('All participants have already completed their tests!'),
                     'type': 'info',
                 }
             }
+        
         incomplete_participants.write({
             'state': 'confirmed',
             'completion_date': fields.Datetime.now()
         })
+        
         # Update related sale order lines
-        sale_lines = incomplete_participants.mapped('sale_line_id')
+        sale_lines = incomplete_participants.mapped('sale_line_id').filtered(
+            lambda sol: sol.qty_delivered_method == 'participants'
+        )
         if sale_lines:
             sale_lines._compute_qty_delivered()
+        
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Success'),
-                'message': _('%d participants marked as confirmed!') % len(incomplete_participants),
+                'message': _('%d participants marked as test completed!') % len(incomplete_participants),
                 'type': 'success',
             }
         }
@@ -110,7 +116,7 @@ class Project(models.Model):
         if self.is_participant_based and self.participant_count > 0:
             buttons.append({
                 'icon': 'users',
-                'text': _('Participants'),
+                'text': _('Test Participants'),
                 'number': f"{self.completed_participants_count}/{self.participant_count}",
                 'action_type': 'object',
                 'action': 'action_view_participants',
@@ -141,6 +147,9 @@ class Project(models.Model):
         return {
             'total': len(participants),
             'completed': len(participants.filtered(lambda p: p.state == 'confirmed')),
+            'pending': len(participants.filtered(lambda p: p.state == 'not_yet_confirmed')),
+            'rescheduled': len(participants.filtered(lambda p: p.state == 'rescheduled')),
+            'cancelled': len(participants.filtered(lambda p: p.state == 'cancelled')),
             'data': participants.read([
                 'first_name', 'last_name', 'state',
                 'completion_date', 'email_address', 'mobile_phone'

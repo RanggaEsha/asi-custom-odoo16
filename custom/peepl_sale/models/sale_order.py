@@ -7,12 +7,14 @@ class CrmLead(models.Model):
     _inherit = 'crm.lead'
 
     def action_new_quotation(self):
+        """Override to carry forward participant data to new quotations"""
         action = super().action_new_quotation()
-        # Add participant and assessment fields to context
         self.ensure_one()
+        
         # Collect participant IDs related to this lead
-        participant_ids = self.env['participant'].search([('lead_id', '=', self.id)]).ids
-        # Add assessment fields (adjust field names if needed)
+        participant_ids = self.participant_ids.ids
+        
+        # Add assessment and participant fields to context
         context = dict(action.get('context', {}))
         context.update({
             'default_has_participant_data': self.has_participant_data,
@@ -38,6 +40,7 @@ class SaleOrder(models.Model):
 
     @api.depends('order_line.product_id.service_policy')
     def _compute_is_product_participant(self):
+        """Check if order has any participant-based products"""
         for order in self:
             order.is_product_participant = any(
                 line.product_id.service_policy == 'delivered_participants'
@@ -45,8 +48,9 @@ class SaleOrder(models.Model):
             )
 
     def action_mark_all_participants_completed(self):
-        """Mark all participants in this order as confirmed (completed)"""
+        """Mark all participants in this order as confirmed (test completed)"""
         self.ensure_one()
+        
         incomplete_participants = self.participant_ids.filtered(lambda p: p.state != 'confirmed')
         if not incomplete_participants:
             return {
@@ -54,34 +58,37 @@ class SaleOrder(models.Model):
                 'tag': 'display_notification',
                 'params': {
                     'title': _('Info'),
-                    'message': _('All participants have already been confirmed!'),
+                    'message': _('All participants have already completed their tests!'),
                     'type': 'info',
                 }
             }
+        
+        # Mark participants as confirmed
         incomplete_participants.write({
             'state': 'confirmed',
             'completion_date': fields.Datetime.now()
         })
-        # Update related sale order lines
+        
+        # Update related sale order lines quantities
         participant_sale_lines = incomplete_participants.mapped('sale_line_id').filtered(
             lambda sol: sol.qty_delivered_method == 'participants'
         )
         if participant_sale_lines:
             participant_sale_lines._compute_qty_delivered()
+        
         # Post message on sale order
+        participant_names = ', '.join(incomplete_participants.mapped('full_name'))
         message = _(
-            '%d participants marked as confirmed. Tests finished for: %s'
-        ) % (
-            len(incomplete_participants),
-            ', '.join(incomplete_participants.mapped('full_name'))
-        )
+            '%d participants marked as test completed: %s'
+        ) % (len(incomplete_participants), participant_names)
         self.message_post(body=message)
+        
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Success'),
-                'message': _('%d participants marked as confirmed!') % len(incomplete_participants),
+                'message': _('%d participants marked as test completed!') % len(incomplete_participants),
                 'type': 'success',
             }
         }
@@ -96,42 +103,39 @@ class SaleOrder(models.Model):
         
         for line in participant_lines:
             if line.auto_link_participants and not line.related_participants_ids:
+                # Use all order participants if auto-link is enabled
                 all_participants |= self.participant_ids
             else:
+                # Use specifically linked participants
                 all_participants |= line.related_participants_ids
         
         action = {
-            'name': _('Participants for Invoicing - %s') % self.name,
+            'name': _('Test Participants - %s') % self.name,
             'type': 'ir.actions.act_window',
             'res_model': 'participant',
-            'view_mode': 'tree,form',
+            'view_mode': 'kanban,tree,form',
             'domain': [('id', 'in', all_participants.ids)],
             'context': {
                 'default_sale_order_id': self.id,
+                'search_default_not_confirmed': 1,
             },
             'help': _("""
                 <p class="o_view_nocontent_smiling_face">
-                    No participants found for invoicing.
+                    No test participants found.
                 </p><p>
                     Participants linked to sale order lines with participant-based invoicing 
-                    will appear here. Mark them as completed when they finish their tests.
+                    will appear here. Mark them as test completed to trigger invoicing.
                 </p>
             """),
         }
         
-        if len(all_participants) == 1:
-            action.update({
-                'view_mode': 'form',
-                'res_id': all_participants.id,
-            })
-        
         return action
 
     def write(self, vals):
-        """Override to handle participant-based product changes"""
+        """Override to auto-enable participant data for participant products"""
         result = super().write(vals)
         
-        # Update has_participant_data based on order lines
+        # Auto-enable has_participant_data when participant products are added
         for order in self:
             has_participant_products = any(
                 line.product_id.service_policy == 'delivered_participants' 
@@ -144,15 +148,20 @@ class SaleOrder(models.Model):
 
     @api.model
     def create(self, vals):
+        """Override to handle participant IDs from lead conversion"""
         order = super().create(vals)
+        
+        # Link participants from context (from lead conversion)
         participant_ids = vals.get('participant_ids')
-        ids = []
         if participant_ids:
+            ids = []
             for command in participant_ids:
-                if command[0] == 6:
+                if command[0] == 6:  # Replace command
                     ids.extend(command[2])
-                elif command[0] == 4:
+                elif command[0] == 4:  # Link command
                     ids.append(command[1])
-        if ids:
-            self.env['participant'].browse(ids).write({'sale_order_id': order.id})
+            
+            if ids:
+                self.env['participant'].browse(ids).write({'sale_order_id': order.id})
+        
         return order

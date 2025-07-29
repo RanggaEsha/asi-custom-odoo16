@@ -13,24 +13,22 @@ class Participant(models.Model):
     _description = 'Participant Data'
     _order = 'first_name, last_name'
 
-    # State tracking for participant confirmation (added for compatibility with all modules)
+    # State management
     state = fields.Selection([
         ('not_yet_confirmed', 'Not Yet Confirmed'),
         ('confirmed', 'Confirmed'),
         ('rescheduled', 'Rescheduled'),
         ('cancelled', 'Cancelled'),
-    ],
-        string='State',
-        default='not_yet_confirmed',
-        required=True,
-        help='Current confirmation state of the participant.'
-    )
+    ], string='State', default='not_yet_confirmed', required=True,
+       help='Current confirmation state of the participant.')
+    
     completion_date = fields.Datetime(
-        string='Completion/Confirmation Date',
+        string='Completion Date',
         readonly=True,
         help='Date and time when the state was set to Confirmed.'
     )
 
+    # Basic fields
     first_name = fields.Char(string='First Name', required=True)
     last_name = fields.Char(string='Last Name', required=True)
     gender = fields.Selection([('male', 'Male'), ('female', 'Female'), ('other', 'Other')], string='Gender')
@@ -38,10 +36,12 @@ class Participant(models.Model):
     mobile_phone = fields.Char(string='Mobile Phone')
     job_title_requiring_assessment = fields.Char(string='Job Title Requiring Assessment')
     position_level = fields.Char(string='Position Level')
+    
+    # Relations
     lead_id = fields.Many2one('crm.lead', string='Lead/Opportunity', ondelete='cascade')
     sale_order_id = fields.Many2one('sale.order', string='Sale Order', ondelete='cascade')
     
-    # Additional fields for better data management
+    # Additional fields
     active = fields.Boolean(string='Active', default=True)
     sequence = fields.Integer(string='Sequence', default=10)
     notes = fields.Text(string='Notes')
@@ -50,34 +50,86 @@ class Participant(models.Model):
     def _check_unique_participant_per_lead(self):
         """Ensure participant names are unique within the same lead or sale order"""
         for record in self:
-            existing_lead = self.search([
-                ('first_name', '=', record.first_name),
-                ('last_name', '=', record.last_name),
-                ('lead_id', '=', record.lead_id.id),
-                ('id', '!=', record.id)
-            ])
-            existing_sale_order = self.search([
-                ('first_name', '=', record.first_name),
-                ('last_name', '=', record.last_name),
-                ('sale_order_id', '=', record.sale_order_id.id),
-                ('id', '!=', record.id)
-            ])
-            if existing_lead:
-                raise UserError(_('Participant "%s %s" already exists for this lead/opportunity.') % (record.first_name, record.last_name))
-            if existing_sale_order:
-                raise UserError(_('Participant "%s %s" already exists for this sale order.') % (record.first_name, record.last_name))  
+            if record.lead_id:
+                existing = self.search([
+                    ('first_name', '=', record.first_name),
+                    ('last_name', '=', record.last_name),
+                    ('lead_id', '=', record.lead_id.id),
+                    ('id', '!=', record.id)
+                ])
+                if existing:
+                    raise UserError(_('Participant "%s %s" already exists for this lead/opportunity.') % (record.first_name, record.last_name))
+            
+            if record.sale_order_id:
+                existing = self.search([
+                    ('first_name', '=', record.first_name),
+                    ('last_name', '=', record.last_name),
+                    ('sale_order_id', '=', record.sale_order_id.id),
+                    ('id', '!=', record.id)
+                ])
+                if existing:
+                    raise UserError(_('Participant "%s %s" already exists for this sale order.') % (record.first_name, record.last_name))
+
+    def write(self, vals):
+        """Auto-set completion date when state changes to confirmed"""
+        if 'state' in vals:
+            if vals['state'] == 'confirmed':
+                vals['completion_date'] = fields.Datetime.now()
+            else:
+                vals['completion_date'] = False
+        return super().write(vals)
+
+    def action_set_not_confirmed(self):
+        """Set state to not yet confirmed"""
+        self.write({'state': 'not_yet_confirmed'})
+        return self._show_notification('Not Yet Confirmed')
+
+    def action_set_confirmed(self):
+        """Set state to confirmed"""
+        self.write({'state': 'confirmed'})
+        return self._show_notification('Confirmed')
+
+    def action_set_rescheduled(self):
+        """Set state to rescheduled"""
+        self.write({'state': 'rescheduled'})
+        return self._show_notification('Rescheduled')
+
+    def action_set_cancelled(self):
+        """Set state to cancelled"""
+        self.write({'state': 'cancelled'})
+        return self._show_notification('Cancelled')
+
+    def _show_notification(self, new_state):
+        """Show notification after state change"""
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Success'),
+                'message': _('Participant %s is now %s') % (self.name_get()[0][1], new_state),
+                'type': 'success',
+            }
+        }
 
     def name_get(self):
         """Display name with job title and position level info"""
         result = []
+        state_icons = {
+            'confirmed': ' ✓',
+            'rescheduled': ' ⟳',
+            'cancelled': ' ✗',
+            'not_yet_confirmed': ''
+        }
         for record in self:
             name = f"{record.first_name} {record.last_name}".strip()
             if record.job_title_requiring_assessment:
                 name += f" - {record.job_title_requiring_assessment}"
             if record.position_level:
                 name += f" ({record.position_level})"
+            name += state_icons.get(record.state, '')
             result.append((record.id, name))
         return result
+
 
 class AssessmentType(models.Model):
     _name = 'assessment.type'
@@ -101,6 +153,11 @@ class AssessmentType(models.Model):
         """Count leads using this assessment type"""
         for record in self:
             record.lead_count = self.env['crm.lead'].search_count([('type_of_assessment', '=', record.id)])
+            
+    @api.depends('name')
+    def _compute_sale_order_count(self):
+        """Count sale orders using this assessment type"""
+        for record in self:
             record.sale_order_count = self.env['sale.order'].search_count([('type_of_assessment', '=', record.id)])
 
     @api.constrains('code')
@@ -160,6 +217,11 @@ class AssessmentLanguage(models.Model):
         """Count leads using this assessment language"""
         for record in self:
             record.lead_count = self.env['crm.lead'].search_count([('assessment_language', '=', record.id)])
+            
+    @api.depends('name')
+    def _compute_sale_order_count(self):
+        """Count sale orders using this assessment language"""
+        for record in self:
             record.sale_order_count = self.env['sale.order'].search_count([('assessment_language', '=', record.id)])
 
     @api.constrains('code')
