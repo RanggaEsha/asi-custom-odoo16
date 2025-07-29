@@ -19,8 +19,6 @@
             </field>
         </record>
 
-        <!-- Sale Order Line Form View inheritance removed due to missing base view -->
-
         <!-- Inherit Sale Order Form View to enhance participant features -->
         <record id="sale_order_form_inherit_participant_enhanced" model="ir.ui.view">
             <field name="name">sale.order.form.participant.enhanced</field>
@@ -43,17 +41,13 @@
                     <field name="is_product_participant" invisible="1"/>
                 </xpath>
 
-                <!-- Add participant tab in the notebook if has participant data -->
-                <xpath expr="//page[@name='other_information']" position="after">
+                <!-- Add participant tab in the notebook if has participant data
+                <xpath expr="//page[@name='order_lines']" position="after">
                     <page name="participants" 
                           string="Participants" 
                           attrs="{'invisible': [('has_participant_data', '=', False)]}"
                           groups="peepl_sale.group_project_participant">
                         <group>
-                            <group>
-                                <field name="test_start_date"/>
-                                <field name="test_finish_date"/>
-                            </group>
                             <group>
                                 <button name="action_mark_all_participants_completed"
                                         type="object"
@@ -61,11 +55,6 @@
                                         class="btn-success"
                                         attrs="{'invisible': [('participant_count', '=', 0)]}"/>
                             </group>
-                        </group>
-                        <group string="Assessment Details">
-                            <field name="type_of_assessment" widget="many2many_tags"/>
-                            <field name="assessment_language" widget="many2many_tags"/>
-                            <field name="purpose"/>
                         </group>
                         <field name="participant_ids" 
                                context="{'default_sale_order_id': id}"
@@ -99,7 +88,7 @@
                             </tree>
                         </field>
                     </page>
-                </xpath>
+                </xpath> -->
             </field>
         </record>
 

@@ -17,7 +17,7 @@ class Project(models.Model):
         string='Total Participants',
         compute='_compute_participant_count'
     )
-    
+
     completed_participants_count = fields.Integer(
         string='Completed Participants',
         compute='_compute_participant_count'
@@ -33,7 +33,7 @@ class Project(models.Model):
         for project in self:
             project.participant_count = len(project.participant_ids)
             project.completed_participants_count = len(
-                project.participant_ids.filtered('done')
+                project.participant_ids.filtered(lambda p: p.state == 'confirmed')
             )
 
     @api.depends('sale_line_id.product_id.service_policy')
@@ -70,38 +70,35 @@ class Project(models.Model):
         
         return action
 
-    def action_mark_all_participants_done(self):
-        """Action to mark all participants as done"""
+    def action_mark_all_participants_completed(self):
+        """Action to mark all participants as completed"""
         self.ensure_one()
         
-        incomplete_participants = self.participant_ids.filtered(lambda p: not p.done)
+        incomplete_participants = self.participant_ids.filtered(lambda p: p.state != 'confirmed')
         if not incomplete_participants:
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',
                 'params': {
                     'title': _('Info'),
-                    'message': _('All participants are already completed!'),
+                    'message': _('All participants are already confirmed!'),
                     'type': 'info',
                 }
             }
-        
         incomplete_participants.write({
-            'done': True,
-            'done_date': fields.Datetime.now()
+            'state': 'confirmed',
+            'completion_date': fields.Datetime.now()
         })
-        
         # Update related sale order lines
         sale_lines = incomplete_participants.mapped('sale_line_id')
         if sale_lines:
             sale_lines._compute_qty_delivered()
-        
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Success'),
-                'message': _('%d participants marked as completed!') % len(incomplete_participants),
+                'message': _('%d participants marked as confirmed!') % len(incomplete_participants),
                 'type': 'success',
             }
         }
@@ -116,7 +113,7 @@ class Project(models.Model):
                 'text': _('Participants'),
                 'number': f"{self.completed_participants_count}/{self.participant_count}",
                 'action_type': 'object',
-                'action': 'action_view_sale_participants',
+                'action': 'action_view_participants',
                 'show': True,
                 'sequence': 5,
             })
@@ -143,9 +140,9 @@ class Project(models.Model):
         
         return {
             'total': len(participants),
-            'completed': len(participants.filtered('done')),
+            'completed': len(participants.filtered(lambda p: p.state == 'confirmed')),
             'data': participants.read([
-                'name', 'participant_code', 'done', 
-                'done_date', 'email', 'phone'
+                'first_name', 'last_name', 'state',
+                'completion_date', 'email_address', 'mobile_phone'
             ])[:10],  # Limit to first 10 for performance
         }

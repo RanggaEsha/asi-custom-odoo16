@@ -7,9 +7,9 @@
         <!-- ========================================= -->
         
         <!-- Assessment Type Tree View -->
-        <record id="crm_assessment_type_tree_view" model="ir.ui.view">
-            <field name="name">crm.assessment.type.tree</field>
-            <field name="model">crm.assessment.type</field>
+        <record id="assessment_type_tree_view" model="ir.ui.view">
+            <field name="name">assessment.type.tree</field>
+            <field name="model">assessment.type</field>
             <field name="arch" type="xml">
                 <tree string="Assessment Types" editable="bottom" multi_edit="1">
                     <field name="sequence" widget="handle"/>
@@ -24,13 +24,15 @@
         </record>
 
         <!-- Assessment Type Form View -->
-        <record id="crm_assessment_type_form_view" model="ir.ui.view">
-            <field name="name">crm.assessment.type.form</field>
-            <field name="model">crm.assessment.type</field>
+        <record id="assessment_type_form_view" model="ir.ui.view">
+            <field name="name">assessment.type.form</field>
+            <field name="model">assessment.type</field>
             <field name="arch" type="xml">
                 <form string="Assessment Type">
                     <sheet>
                         <div class="oe_button_box" name="button_box">
+                            <field name="lead_count" invisible="1"/>
+                            <field name="sale_order_count" invisible="1"/>
                             <button name="toggle_active" type="object"
                                     class="oe_stat_button" icon="fa-archive">
                                 <field name="active" widget="boolean_button"
@@ -39,7 +41,12 @@
                             <button name="action_view_leads" type="object"
                                     class="oe_stat_button" icon="fa-users"
                                     attrs="{'invisible': [('lead_count', '=', 0)]}">
-                                <field name="lead_count" widget="statinfo" string="Leads"/>
+                                <field name="lead_count" widget="statinfo" string="Leads" attrs="{'invisible': [('lead_count', '=', 0)]}"/>
+                            </button>
+                            <button name="action_view_sale_orders" type="object"
+                                    class="oe_stat_button" icon="fa-shopping-cart"
+                                    attrs="{'invisible': [('sale_order_count', '=', 0)]}">
+                                <field name="sale_order_count" widget="statinfo" string="Sale Orders" attrs="{'invisible': [('sale_order_count', '=', 0)]}"/>
                             </button>
                         </div>
                         <div class="oe_title">
@@ -65,9 +72,9 @@
         </record>
 
         <!-- Assessment Type Search View -->
-        <record id="crm_assessment_type_search_view" model="ir.ui.view">
-            <field name="name">crm.assessment.type.search</field>
-            <field name="model">crm.assessment.type</field>
+        <record id="assessment_type_search_view" model="ir.ui.view">
+            <field name="name">assessment.type.search</field>
+            <field name="model">assessment.type</field>
             <field name="arch" type="xml">
                 <search string="Search Assessment Types">
                     <field name="name"/>
@@ -81,11 +88,11 @@
         </record>
 
         <!-- Assessment Type Action -->
-        <record id="action_crm_assessment_type" model="ir.actions.act_window">
+        <record id="action_assessment_type" model="ir.actions.act_window">
             <field name="name">Assessment Types</field>
-            <field name="res_model">crm.assessment.type</field>
+            <field name="res_model">assessment.type</field>
             <field name="view_mode">tree,form</field>
-            <field name="search_view_id" ref="crm_assessment_type_search_view"/>
+            <field name="search_view_id" ref="assessment_type_search_view"/>
             <field name="context">{'search_default_active': 1}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
@@ -103,9 +110,9 @@
         <!-- ========================================= -->
         
         <!-- Assessment Language Tree View -->
-        <record id="crm_assessment_language_tree_view" model="ir.ui.view">
-            <field name="name">crm.assessment.language.tree</field>
-            <field name="model">crm.assessment.language</field>
+        <record id="assessment_language_tree_view" model="ir.ui.view">
+            <field name="name">assessment.language.tree</field>
+            <field name="model">assessment.language</field>
             <field name="arch" type="xml">
                 <tree string="Assessment Languages" editable="bottom" multi_edit="1">
                     <field name="sequence" widget="handle"/>
@@ -113,7 +120,8 @@
                     <field name="native_name"/>
                     <field name="code"/>
                     <field name="description"/>
-                    <field name="lead_count" string="Leads"/>
+                    <field name="lead_count" string="Leads" attrs="{'invisible': [('lead_count', '=', 0)]}"/>
+                    <field name="sale_order_count" string="Sale Orders" attrs="{'invisible': [('sale_order_count', '=', 0)]}"/>
                     <field name="active" optional="hide"/>
                     <field name="color" widget="color_picker" optional="hide"/>
                 </tree>
@@ -121,13 +129,15 @@
         </record>
 
         <!-- Assessment Language Form View -->
-        <record id="crm_assessment_language_form_view" model="ir.ui.view">
-            <field name="name">crm.assessment.language.form</field>
-            <field name="model">crm.assessment.language</field>
+        <record id="assessment_language_form_view" model="ir.ui.view">
+            <field name="name">assessment.language.form</field>
+            <field name="model">assessment.language</field>
             <field name="arch" type="xml">
                 <form string="Assessment Language">
                     <sheet>
                         <div class="oe_button_box" name="button_box">
+                            <field name="lead_count" invisible="1"/>
+                            <field name="sale_order_count" invisible="1"/>
                             <button name="toggle_active" type="object"
                                     class="oe_stat_button" icon="fa-archive">
                                 <field name="active" widget="boolean_button"
@@ -136,7 +146,14 @@
                             <button name="action_view_leads" type="object"
                                     class="oe_stat_button" icon="fa-users"
                                     attrs="{'invisible': [('lead_count', '=', 0)]}">
-                                <field name="lead_count" widget="statinfo" string="Leads"/>
+                                <field name="lead_count" widget="statinfo" string="Leads" 
+                                       attrs="{'invisible': [('lead_count', '=', 0)]}"/>
+                            </button>
+                            <button name="action_view_sale_orders" type="object"
+                                    class="oe_stat_button" icon="fa-shopping-cart"
+                                    attrs="{'invisible': [('sale_order_count', '=', 0)]}">
+                                <field name="sale_order_count" widget="statinfo" string="Sale Orders" 
+                                       attrs="{'invisible': [('sale_order_count', '=', 0)]}"/>
                             </button>
                         </div>
                         <div class="oe_title">
@@ -163,9 +180,9 @@
         </record>
 
         <!-- Assessment Language Search View -->
-        <record id="crm_assessment_language_search_view" model="ir.ui.view">
-            <field name="name">crm.assessment.language.search</field>
-            <field name="model">crm.assessment.language</field>
+        <record id="assessment_language_search_view" model="ir.ui.view">
+            <field name="name">assessment.language.search</field>
+            <field name="model">assessment.language</field>
             <field name="arch" type="xml">
                 <search string="Search Assessment Languages">
                     <field name="name"/>
@@ -180,11 +197,11 @@
         </record>
 
         <!-- Assessment Language Action -->
-        <record id="action_crm_assessment_language" model="ir.actions.act_window">
+        <record id="action_assessment_language" model="ir.actions.act_window">
             <field name="name">Assessment Languages</field>
-            <field name="res_model">crm.assessment.language</field>
+            <field name="res_model">assessment.language</field>
             <field name="view_mode">tree,form</field>
-            <field name="search_view_id" ref="crm_assessment_language_search_view"/>
+            <field name="search_view_id" ref="assessment_language_search_view"/>
             <field name="context">{'search_default_active': 1}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
@@ -201,25 +218,43 @@
         <!-- MENU ITEMS -->
         <!-- ========================================= -->
         
-        <!-- Configuration Menu -->
-        <menuitem id="menu_crm_assessment_config" 
-                  name="Assessment Configuration" 
-                  parent="crm.crm_menu_config"
-                  sequence="10"/>
+        <!-- Configuration Menu CRM -->
+        <menuitem id="menu_assessment_config" 
+                name="Assessment Configuration" 
+                parent="crm.crm_menu_config"
+                sequence="30"/>
+
+        <!-- Configuration Menu Sale -->
+        <menuitem id="menu_assessment_config_sale" 
+                name="Assessment Configuration" 
+                parent="sale.menu_sale_config"
+                sequence="30"/>
 
         <!-- Assessment Types Menu -->
-        <menuitem id="menu_crm_assessment_type" 
-                  name="Assessment Types" 
-                  parent="menu_crm_assessment_config" 
-                  action="action_crm_assessment_type"
-                  sequence="10"/>
+        <menuitem id="menu_assessment_type" 
+                name="Assessment Types" 
+                parent="menu_assessment_config" 
+                action="action_assessment_type"
+                sequence="10"/>
+        
+        <menuitem id="menu_assessment_type_sale" 
+                name="Assessment Types" 
+                parent="menu_assessment_config_sale" 
+                action="action_assessment_type"
+                sequence="10"/>
 
         <!-- Assessment Languages Menu -->
-        <menuitem id="menu_crm_assessment_language" 
-                  name="Assessment Languages" 
-                  parent="menu_crm_assessment_config" 
-                  action="action_crm_assessment_language"
-                  sequence="20"/>
+        <menuitem id="menu_assessment_language" 
+                name="Assessment Languages" 
+                parent="menu_assessment_config" 
+                action="action_assessment_language"
+                sequence="20"/>
+        
+        <menuitem id="menu_assessment_language_sale" 
+                name="Assessment Languages" 
+                parent="menu_assessment_config_sale" 
+                action="action_assessment_language"
+                sequence="20"/>
 
     </data>
 </odoo>

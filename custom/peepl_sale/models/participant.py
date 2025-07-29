@@ -26,16 +26,22 @@ class Participant(models.Model):
         help='Project associated with the sale order line'
     )
     
-    # Completion tracking for invoicing
-    test_completed = fields.Boolean(
-        string='Test Completed', 
-        default=False,
-        help='Mark as true when the participant has completed their test'
+    # State tracking for participant confirmation
+    state = fields.Selection([
+        ('not_yet_confirmed', 'Not Yet Confirmed'),
+        ('confirmed', 'Confirmed'),
+        ('rescheduled', 'Rescheduled'),
+        ('cancelled', 'Cancelled'),
+    ],
+        string='State',
+        default='not_yet_confirmed',
+        required=True,
+        help='Current confirmation state of the participant.'
     )
     completion_date = fields.Datetime(
-        string='Completion Date', 
+        string='Completion/Confirmation Date',
         readonly=True,
-        help='Date and time when the test was completed'
+        help='Date and time when the state was set to Confirmed.'
     )
     
     # Related fields for domain filtering and pricing
@@ -61,7 +67,6 @@ class Participant(models.Model):
         compute='_compute_full_name',
         store=True
     )
-
 
     @api.depends('first_name', 'last_name')
     def _compute_full_name(self):
@@ -94,81 +99,52 @@ class Participant(models.Model):
                 participant.unit_price = 0.0
 
     def write(self, vals):
-        # Track completion date
-        if 'test_completed' in vals:
-            if vals['test_completed']:
+        # Track completion/confirmation date only when state is set to confirmed
+        if 'state' in vals:
+            if vals['state'] == 'confirmed':
                 vals['completion_date'] = fields.Datetime.now()
             else:
                 vals['completion_date'] = False
-        
         result = super().write(vals)
-        
-        # Update sale order line delivered quantity when completion status changes
-        if 'test_completed' in vals:
+        # Update sale order line delivered quantity when state changes to confirmed
+        if 'state' in vals and vals['state'] == 'confirmed':
             sale_lines = self.mapped('sale_line_id').filtered(
                 lambda sol: sol.qty_delivered_method == 'participants'
             )
             if sale_lines:
                 sale_lines._compute_qty_delivered()
-        
         return result
 
-    def action_mark_completed(self):
-        """Action to mark participant test as completed"""
+    def action_change_state(self, new_state):
+        """Action to change participant state via button"""
         self.ensure_one()
-        if self.test_completed:
-            raise ValidationError(
-                _('Participant %s has already completed the test.') % self.full_name
-            )
-        
-        self.write({
-            'test_completed': True,
-            'completion_date': fields.Datetime.now()
-        })
-        
-        # Post message on related sale order
+        valid_states = dict(self._fields['state'].selection)
+        if new_state not in valid_states:
+            raise ValidationError(_('Invalid state.'))
+        old_state = self.state
+        self.write({'state': new_state})
+        # Optionally post a message on related sale order
         if self.sale_order_id:
             message = _(
-                'Test completed by participant: %s (%s - %s)'
+                'Participant %s state changed from %s to %s.'
             ) % (
                 self.full_name,
-                self.job_title_requiring_assessment or 'N/A',
-                self.position_level or 'N/A'
+                dict(self._fields['state'].selection).get(old_state, old_state),
+                dict(self._fields['state'].selection).get(new_state, new_state)
             )
             self.sale_order_id.message_post(body=message)
-        
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Success'),
-                'message': _('Test completed for %s!') % self.full_name,
+                'message': _('State changed to %s for %s!') % (valid_states[new_state], self.full_name),
                 'type': 'success',
+                'reload': True,
             }
         }
 
-    def action_mark_incomplete(self):
-        """Action to mark participant test as incomplete"""
-        self.ensure_one()
-        if not self.test_completed:
-            raise ValidationError(
-                _('Participant %s has not completed the test yet.') % self.full_name
-            )
-        
-        self.write({
-            'test_completed': False,
-            'completion_date': False
-        })
-        
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': _('Success'),
-                'message': _('Test marked as incomplete for %s!') % self.full_name,
-                'type': 'info',
-            }
-        }
+    # Remove action_mark_incomplete, replaced by action_change_state
 
     @api.constrains('sale_line_id')
     def _check_sale_line_participants_method(self):
@@ -182,20 +158,22 @@ class Participant(models.Model):
                 ))
 
     def name_get(self):
-        """Enhanced display name with completion status"""
+        """Enhanced display name with state indicator"""
         result = []
+        state_icons = {
+            'confirmed': ' ✓',
+            'rescheduled': ' ⟳',
+            'cancelled': ' ✗',
+        }
         for participant in self:
-            # Use existing name_get logic but add completion indicator
             name = f"{participant.first_name} {participant.last_name}".strip()
             if participant.job_title_requiring_assessment:
                 name += f" - {participant.job_title_requiring_assessment}"
             if participant.position_level:
                 name += f" ({participant.position_level})"
-            
-            # Add completion indicator
-            if participant.test_completed:
-                name += " ✓"
-            
+            # Add state indicator
+            if participant.state in state_icons:
+                name += state_icons[participant.state]
             result.append((participant.id, name))
         return result
 
@@ -203,7 +181,7 @@ class Participant(models.Model):
     def _get_fields_to_export(self):
         """Fields that can be exported"""
         return [
-            'first_name', 'last_name', 'full_name', 'gender', 'email_address', 
+            'first_name', 'last_name', 'full_name', 'gender', 'email_address',
             'mobile_phone', 'job_title_requiring_assessment', 'position_level',
-            'test_completed', 'completion_date', 'unit_price', 'notes'
+            'state', 'completion_date', 'unit_price', 'notes'
         ]

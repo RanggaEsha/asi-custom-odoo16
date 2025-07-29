@@ -27,7 +27,7 @@
             </field>
         </record>
 
-        <record id="action_view_crm_task_form" model="ir.actions.act_window">
+        <record id="action_view_task_form" model="ir.actions.act_window">
             <field name="name">Create Task</field>
             <field name="type">ir.actions.act_window</field>
             <field name="res_model">crm.task.wizard</field>
@@ -108,31 +108,20 @@
                 </p>
             </field>
         </record>
-
-        <!-- Action for viewing participants -->
-        <record id="action_view_participants" model="ir.actions.act_window">
-            <field name="name">Participants</field>
-            <field name="res_model">crm.participant</field>
-            <field name="view_mode">tree,form</field>
-            <field name="domain">[('lead_id', '=', active_id)]</field>
-            <field name="context">{'default_lead_id': active_id, 'search_default_active': 1}</field>
-            <field name="help" type="html">
-                <p class="o_view_nocontent_smiling_face">
-                    No participants yet!
-                </p>
-                <p>
-                    Add participants for this lead/opportunity. You can also import participant data from Excel or CSV files.
-                </p>
-            </field>
-        </record>
-        
         
         <record id="crm_inherit_form" model="ir.ui.view">
             <field name="name">Crm Lead</field>
             <field name="model">crm.lead</field>
             <field name="inherit_id" ref="crm.crm_lead_view_form" />
             <field name="arch" type="xml">
-                <!-- Add handover fields to the form -->
+                <xpath expr="//header/button[@name='493']" position="after">
+                    <button name="%(action_view_task_form)d" string="Create Task" type="action" class="btn-primary"/>
+                    <button name="action_handover_to_solution_delivery" string="Handover to Team" type="object" 
+                            class="btn-secondary"
+                            groups="peepl_crm.group_handover_manager"
+                            attrs="{'invisible': ['|', ('is_won_stage', '!=', True), ('is_handover_lead', '=', True)]}"/>
+                </xpath>
+
                 <field name="team_id" position="after">
                     <field name="parent_lead_id" attrs="{'invisible': [('is_handover_lead', '=', False)]}" readonly="1"/>
                     <field name="handover_date" attrs="{'invisible': [('handover_date', '=', False)]}" readonly="1"/>
@@ -140,142 +129,20 @@
                     <field name="is_won_stage" invisible="1"/>
                 </field>
 
-                <!-- Add participant data field using xpath -->
-                <xpath expr="//field[@name='tag_ids']" position="after">
-                    <field name="has_participant_data" string="Has Participant Data"/>
-                </xpath>
-
-                <!-- OPTION 3: Add to existing Extra Info tab -->
-                <xpath expr="//sheet/group" position="after">
-                    <group string="Assessment Information" attrs="{'invisible': [('has_participant_data', '=', False)]}" col="4">
-                        <label for="test_start_date" string="Assessment Period" colspan="1"/>
-                        <div colspan="3">
-                            <field name="test_start_date" class="oe_inline" style="width: 45%;"/>
-                            <span style="margin: 0 8px;">to</span>
-                            <field name="test_finish_date" class="oe_inline" style="width: 45%;"/>
-                        </div>
-                        
-                        <!-- REFACTORED: Many2many field with options -->
-                        <label for="type_of_assessment" string="Type of Assessment" colspan="1"/>
-                        <div colspan="3">
-                            <field name="type_of_assessment" widget="many2many_tags"
-    style="width: 300px; min-width: 300px;"
-    options="{'color_field': 'color', 'no_create_edit': False, 'no_create': False}"/>
-                            <button name="%(action_crm_assessment_type)d" 
-                                    type="action" 
-                                    icon="fa-cog" 
-                                    class="btn-link" 
-                                    title="Configure Assessment Types"
-                                    style="margin-left: 5px;"/>
-                        </div>
-                        
-                        <!-- REFACTORED: Many2many field with options -->
-                        <label for="assessment_language" string="Assessment Language" colspan="1"/>
-                        <div colspan="3">
-                            <field name="assessment_language" widget="many2many_tags"
-    style="width: 300px; min-width: 300px;"
-    options="{'color_field': 'color', 'no_create_edit': False, 'no_create': False}"
-    context="{'form_view_ref': 'your_module.crm_assessment_language_form_view'}"/>
-                            <button name="%(action_crm_assessment_language)d" 
-                                    type="action" 
-                                    icon="fa-cog" 
-                                    class="btn-link" 
-                                    title="Configure Assessment Languages"
-                                    style="margin-left: 5px;"/>
-                        </div>
-                        
-                        <label for="purpose" string="Purpose" colspan="1"/>
-                        <div colspan="3">
-                            <field name="purpose" class="oe_inline" placeholder="What is the purpose of this assessment?" style="width: 400px; min-width: 400px;"/>
-                        </div>
-                    </group>
-                </xpath>
-                 
-            <div name="button_box" position="inside">
-                <button class="oe_stat_button" type="action" name="%(action_view_task_id)d"
-                        context="{'default_partner_id': partner_id }"
-                        icon="fa-tasks">
-                        <field  string="Tasks" name="task_number" widget="statinfo"/>
-                    </button>
-                    <button class="oe_stat_button" type="action" name="%(action_view_handover_leads)d"
-                        context="{'default_partner_id': partner_id }"
-                        icon="fa-handshake-o"
-                        groups="peepl_crm.group_handover_user"
-                        attrs="{'invisible': [('handover_number', '=', 0)]}">
-                        <field  string="Handovers" name="handover_number" widget="statinfo"/>
-                    </button>
-                    <button class="oe_stat_button" type="action" name="%(action_view_participants)d"
-                        context="{'default_lead_id': active_id}"
-                        icon="fa-users"
-                        attrs="{'invisible': [('has_participant_data', '=', False)]}">
-                        <field string="Participants" name="participant_count" widget="statinfo"/>
-                    </button>
-                  </div>
-                <button name="%(crm.action_crm_lead2opportunity_partner)d" position="after">
-                    <button name="%(action_view_crm_task_form)d" string="Create Task" type="action" class="btn-primary"/>
-                    <button name="action_handover_to_solution_delivery" string="Handover to Team" type="object" 
-                            class="btn-secondary"
-                            groups="peepl_crm.group_handover_manager"
-                            attrs="{'invisible': ['|', ('is_won_stage', '!=', True), ('is_handover_lead', '=', True)]}"/>
-                </button>
-
-                <!-- Add Participant Data section in notebook -->
-                <xpath expr="//page" position="before">
-                    <page string="Participant Data" name="participant_data" attrs="{'invisible': [('has_participant_data', '=', False)]}">
-                        <div class="alert alert-info" role="alert">
-                            <strong>Import Data:</strong> You can import participant data from Excel or CSV files. 
-                            Go to CRM → Participants menu and use the Import feature. Required columns: first_name, last_name
-                        </div>
-                        <field name="participant_ids" context="{'default_lead_id': active_id}" nolabel="1">
-                            <tree editable="bottom" decoration-muted="active == False">
-                                <field name="sequence" widget="handle"/>
-                                <field name="first_name" required="1"/>
-                                <field name="last_name" required="1"/>
-                                <field name="gender"/>
-                                <field name="email_address"/>
-                                <field name="mobile_phone"/>
-                                <field name="job_title_requiring_assessment"/>
-                                <field name="position_level"/>
-                                <field name="notes"/>
-                                <field name="active" optional="hide"/>
-                            </tree>
-                            <form>
-                                <sheet>
-                                    <div class="oe_button_box" name="button_box">
-                                        <button name="toggle_active" type="object"
-                                                class="oe_stat_button" icon="fa-archive">
-                                            <field name="active" widget="boolean_button"
-                                                   options='{"terminology": "archive"}'/>
-                                        </button>
-                                    </div>
-                                    <div class="oe_title">
-                                        <h1>
-                                            <div class="d-flex">
-                                                <field name="first_name" class="text-break me-2" placeholder="First Name"/>
-                                                <field name="last_name" class="text-break" placeholder="Last Name"/>
-                                            </div>
-                                        </h1>
-                                    </div>
-                                    <group>
-                                        <group>
-                                            <field name="gender"/>
-                                            <field name="email_address"/>
-                                            <field name="mobile_phone"/>
-                                        </group>
-                                        <group>
-                                            <field name="job_title_requiring_assessment"/>
-                                            <field name="position_level"/>
-                                            <field name="sequence"/>
-                                        </group>
-                                    </group>
-                                    <group string="Additional Information">
-                                        <field name="notes" placeholder="Additional notes about this participant..."/>
-                                    </group>
-                                </sheet>
-                            </form>
-                        </field>
-                    </page>
-                </xpath>
+                <div name="button_box" position="inside">
+                    <button class="oe_stat_button" type="action" name="%(action_view_task_id)d"
+                            context="{'default_partner_id': partner_id }"
+                            icon="fa-tasks">
+                            <field  string="Tasks" name="task_number" widget="statinfo"/>
+                        </button>
+                        <button class="oe_stat_button" type="action" name="%(action_view_handover_leads)d"
+                            context="{'default_partner_id': partner_id }"
+                            icon="fa-handshake-o"
+                            groups="peepl_crm.group_handover_user"
+                            attrs="{'invisible': [('handover_number', '=', 0)]}">
+                            <field  string="Handovers" name="handover_number" widget="statinfo"/>
+                        </button>
+                </div>
             </field>
         </record>
 

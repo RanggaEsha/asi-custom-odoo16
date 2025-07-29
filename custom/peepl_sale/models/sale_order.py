@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from odoo import models, fields, api
+from odoo import models, fields, api, _
 
 
 class CrmLead(models.Model):
@@ -27,6 +27,7 @@ class CrmLead(models.Model):
         action['context'] = context
         return action
 
+
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
@@ -44,48 +45,43 @@ class SaleOrder(models.Model):
             )
 
     def action_mark_all_participants_completed(self):
-        """Mark all participants in this order as test completed"""
+        """Mark all participants in this order as confirmed (completed)"""
         self.ensure_one()
-        
-        incomplete_participants = self.participant_ids.filtered(lambda p: not p.test_completed)
+        incomplete_participants = self.participant_ids.filtered(lambda p: p.state != 'confirmed')
         if not incomplete_participants:
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',
                 'params': {
                     'title': _('Info'),
-                    'message': _('All participants have already completed their tests!'),
+                    'message': _('All participants have already been confirmed!'),
                     'type': 'info',
                 }
             }
-        
         incomplete_participants.write({
-            'test_completed': True,
+            'state': 'confirmed',
             'completion_date': fields.Datetime.now()
         })
-        
         # Update related sale order lines
         participant_sale_lines = incomplete_participants.mapped('sale_line_id').filtered(
             lambda sol: sol.qty_delivered_method == 'participants'
         )
         if participant_sale_lines:
             participant_sale_lines._compute_qty_delivered()
-        
         # Post message on sale order
         message = _(
-            '%d participants marked as completed. Tests finished for: %s'
+            '%d participants marked as confirmed. Tests finished for: %s'
         ) % (
             len(incomplete_participants),
             ', '.join(incomplete_participants.mapped('full_name'))
         )
         self.message_post(body=message)
-        
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Success'),
-                'message': _('%d participants marked as completed!') % len(incomplete_participants),
+                'message': _('%d participants marked as confirmed!') % len(incomplete_participants),
                 'type': 'success',
             }
         }
@@ -108,17 +104,10 @@ class SaleOrder(models.Model):
             'name': _('Participants for Invoicing - %s') % self.name,
             'type': 'ir.actions.act_window',
             'res_model': 'participant',
-            'view_mode': 'kanban,tree,form',
-            'view_ids': [
-                (5, 0, 0),
-                (0, 0, {'view_mode': 'kanban', 'view_id': self.env.ref('peepl_sale.participant_view_kanban_invoicing').id}),
-                (0, 0, {'view_mode': 'tree', 'view_id': self.env.ref('peepl_sale.participant_view_tree_invoicing').id}),
-                (0, 0, {'view_mode': 'form', 'view_id': self.env.ref('peepl_sale.participant_view_form_invoicing').id}),
-            ],
+            'view_mode': 'tree,form',
             'domain': [('id', 'in', all_participants.ids)],
             'context': {
                 'default_sale_order_id': self.id,
-                'search_default_test_pending': 1,
             },
             'help': _("""
                 <p class="o_view_nocontent_smiling_face">
@@ -133,7 +122,6 @@ class SaleOrder(models.Model):
         if len(all_participants) == 1:
             action.update({
                 'view_mode': 'form',
-                'view_ids': [(5, 0, 0), (0, 0, {'view_mode': 'form', 'view_id': self.env.ref('peepl_sale.participant_view_form_invoicing').id})],
                 'res_id': all_participants.id,
             })
         

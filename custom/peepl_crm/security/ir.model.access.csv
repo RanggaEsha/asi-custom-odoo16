@@ -2,10 +2,3 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_crm_task_wizard,access_crm_task_wizard,model_crm_task_wizard,base.group_user,1,1,1,1
 access_crm_handover_wizard,access_crm_handover_wizard,model_crm_handover_wizard,group_handover_manager,1,1,1,1
 access_crm_handover_wizard_user,access_crm_handover_wizard_user,model_crm_handover_wizard,base.group_user,1,0,0,0
-access_crm_participant_user,access_crm_participant_user,model_crm_participant,base.group_user,1,1,1,1
-access_crm_participant_salesperson,access_crm_participant_salesperson,model_crm_participant,sales_team.group_sale_salesman,1,1,1,1
-access_crm_participant_manager,access_crm_participant_manager,model_crm_participant,sales_team.group_sale_manager,1,1,1,1
-access_crm_assessment_type_user,crm.assessment.type.user,model_crm_assessment_type,base.group_user,1,1,1,0
-access_crm_assessment_type_manager,crm.assessment.type.manager,model_crm_assessment_type,sales_team.group_sale_manager,1,1,1,1
-access_crm_assessment_language_user,crm.assessment.language.user,model_crm_assessment_language,base.group_user,1,1,1,0
-access_crm_assessment_language_manager,crm.assessment.language.manager,model_crm_assessment_language,sales_team.group_sale_manager,1,1,1,1

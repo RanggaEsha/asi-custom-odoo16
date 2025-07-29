@@ -3,6 +3,5 @@
 
 
 from . import crm_task
-from . import crm_participant
 
 # vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:

@@ -57,7 +57,7 @@ Technical Details:
         'sale_project', 
         'sale_management',
         'base_import',
-        'peepl_participant',  # Assuming this is the existing participant module
+        # 'peepl_participant',  # Assuming this is the existing participant module
         # 'peepl_crm',  # Assuming this is the existing CRM module
         'crm',
     ],

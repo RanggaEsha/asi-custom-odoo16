@@ -30,7 +30,7 @@ class SaleOrderLine(models.Model):
         'participant', 
         'sale_line_id', 
         string='Completed Participants', 
-        domain=[('test_completed', '=', True)]
+        domain=[('state', '=', 'confirmed')]
     )
     
     participants_count = fields.Integer(
@@ -57,12 +57,11 @@ class SaleOrderLine(models.Model):
                 if line.auto_link_participants and not line.related_participants_ids:
                     # Use all order participants if no specific linking
                     all_participants = line.all_order_participants_ids
-                    completed_participants = all_participants.filtered('test_completed')
+                    completed_participants = all_participants.filtered(lambda p: p.state == 'confirmed')
                 else:
                     # Use specifically linked participants
                     all_participants = line.related_participants_ids
                     completed_participants = line.completed_participants_ids
-                
                 line.participants_count = len(all_participants)
                 line.completed_participants_count = len(completed_participants)
             else:
@@ -92,11 +91,10 @@ class SaleOrderLine(models.Model):
         for line in lines_by_participants:
             if line.auto_link_participants and not line.related_participants_ids:
                 # Use all order participants
-                completed_count = len(line.all_order_participants_ids.filtered('test_completed'))
+                completed_count = len(line.all_order_participants_ids.filtered(lambda p: p.state == 'confirmed'))
             else:
                 # Use specifically linked participants
                 completed_count = len(line.completed_participants_ids)
-            
             # For participants, we deliver the exact number of completed participants
             line.qty_delivered = completed_count
 
@@ -209,7 +207,7 @@ class SaleOrderLine(models.Model):
         # For participant-based lines, ensure proper analytic account
         if self.qty_delivered_method == 'participants':
             if not values.get('analytic_distribution'):
-                if self.project_id and self.project_id.analytic_account_id:
+                if hasattr(self, 'project_id') and self.project_id and self.project_id.analytic_account_id:
                     values['analytic_distribution'] = {self.project_id.analytic_account_id.id: 100}
         
         return values

@@ -13,7 +13,6 @@ from odoo.osv import  osv
 from odoo import SUPERUSER_ID
 
 
-
 class crm_lead(models.Model):
     """ CRM Lead Case """
     _inherit = "crm.lead"
@@ -31,11 +30,6 @@ class crm_lead(models.Model):
         for record in self:
             record.is_won_stage = record.stage_id.is_won if record.stage_id else False
 
-    def _compute_participant_count(self):
-        """Compute participant count"""
-        for record in self:
-            record.participant_count = self.env['crm.participant'].search_count([('lead_id', '=', record.id)])
-
     task_number = fields.Integer(compute='task_count', string='Tasks')
     
     # Handover fields
@@ -48,121 +42,7 @@ class crm_lead(models.Model):
                                   help='Date when this lead was handed over or created from handover')
     is_won_stage = fields.Boolean(string='Is Won Stage', compute='_compute_is_won_stage',
                                 help='True if current stage is marked as won')
-    
-    # Participant management
-    has_participant_data = fields.Boolean(string='Has Participant Data', default=False)
-    test_start_date = fields.Date(string='Test Start Date')
-    test_finish_date = fields.Date(string='Test Finish Date')
-    purpose = fields.Text(string='Purpose')
-    
-    # REFACTORED: Changed from Selection to Many2one
-    type_of_assessment = fields.Many2many(
-        'crm.assessment.type',
-        'crm_lead_assessment_type_rel',
-        'lead_id',
-        'assessment_type_id',
-        string='Type of Assessment',
-        help='Select one or more types of assessment for this lead'
-    )
 
-    assessment_language = fields.Many2many(
-        'crm.assessment.language',
-        'crm_lead_assessment_language_rel',
-        'lead_id',
-        'assessment_language_id',
-        string='Assessment Language',
-        help='Select one or more languages for the assessment'
-    )
-    
-    # Participant management
-    participant_ids = fields.One2many('crm.participant', 'lead_id', string='Participants')
-    participant_count = fields.Integer(string='Participant Count', compute='_compute_participant_count')
-    
-    @api.depends('participant_ids')
-    def _compute_participant_count(self):
-        """Count participants for this lead"""
-        for record in self:
-            record.participant_count = len(record.participant_ids)
-    
-    def action_view_participants(self):
-        """Open participants view for this lead"""
-        self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': f'Participants - {self.name}',
-            'res_model': 'crm.participant',
-            'view_mode': 'tree,form',
-            'domain': [('lead_id', '=', self.id)],
-            'context': {'default_lead_id': self.id},
-        }
-    
-    @api.onchange('type_of_assessment')
-    def _onchange_type_of_assessment(self):
-        """Update purpose field when assessment type changes (Many2many)"""
-        if self.type_of_assessment:
-            descriptions = [desc for desc in self.type_of_assessment.mapped('description') if isinstance(desc, str) and desc]
-            if descriptions and not self.purpose:
-                self.purpose = ', '.join(descriptions)
-    
-    @api.onchange('has_participant_data')
-    def _onchange_has_participant_data(self):
-        """Clear assessment fields when participant data is disabled"""
-        if not self.has_participant_data:
-            self.type_of_assessment = False
-            self.assessment_language = False
-            self.test_start_date = False
-            self.test_finish_date = False
-            self.purpose = False
-    
-    @api.model_create_multi
-    def create(self, vals_list):
-        """Update assessment type/language counts when creating leads"""
-        records = super().create(vals_list)
-        self._update_assessment_counts(records)
-        return records
-    
-    def write(self, vals):
-        """Update assessment type/language counts when updating leads"""
-        old_assessment_types = self.mapped('type_of_assessment')
-        old_assessment_languages = self.mapped('assessment_language')
-        
-        result = super().write(vals)
-        
-        if 'type_of_assessment' in vals or 'assessment_language' in vals:
-            new_assessment_types = self.mapped('type_of_assessment')
-            new_assessment_languages = self.mapped('assessment_language')
-            
-            # Update counts for old and new assessment types/languages
-            all_types = (old_assessment_types | new_assessment_types).filtered(lambda x: x)
-            all_languages = (old_assessment_languages | new_assessment_languages).filtered(lambda x: x)
-            
-            self._update_specific_counts(all_types, all_languages)
-        
-        return result
-    
-    def unlink(self):
-        """Update assessment type/language counts when deleting leads"""
-        assessment_types = self.mapped('type_of_assessment').filtered(lambda x: x)
-        assessment_languages = self.mapped('assessment_language').filtered(lambda x: x)
-        
-        result = super().unlink()
-        
-        self._update_specific_counts(assessment_types, assessment_languages)
-        return result
-    
-    def _update_assessment_counts(self, records):
-        """Helper method to update assessment counts"""
-        assessment_types = records.mapped('type_of_assessment').filtered(lambda x: x)
-        assessment_languages = records.mapped('assessment_language').filtered(lambda x: x)
-        self._update_specific_counts(assessment_types, assessment_languages)
-    
-    def _update_specific_counts(self, assessment_types, assessment_languages):
-        """Update lead counts for specific assessment types and languages"""
-        if assessment_types:
-            assessment_types._compute_lead_count()
-        if assessment_languages:
-            assessment_languages._compute_lead_count()
-    
     def action_handover_to_solution_delivery(self):
         """Open handover wizard for team selection"""
         # Check if current lead is won
@@ -184,21 +64,6 @@ class crm_lead(models.Model):
                 'default_source_lead_id': self.id,
                 'active_id': self.id,
             }
-        }
-
-    def action_view_participants(self):
-        """Action to view participants in a dedicated window"""
-        return {
-            'name': _('Participants'),
-            'type': 'ir.actions.act_window',
-            'res_model': 'crm.participant',
-            'view_mode': 'tree,form',
-            'domain': [('lead_id', '=', self.id)],
-            'context': {
-                'default_lead_id': self.id,
-                'search_default_lead_id': self.id,
-            },
-            'target': 'current',
         }
     
 class crm_task_wizard(models.TransientModel):

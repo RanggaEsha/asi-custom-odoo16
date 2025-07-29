@@ -3,9 +3,9 @@
     <data>
         
         <!-- Participant Tree View -->
-        <record id="crm_participant_tree_view" model="ir.ui.view">
-            <field name="name">crm.participant.tree</field>
-            <field name="model">crm.participant</field>
+        <record id="participant_tree_view" model="ir.ui.view">
+            <field name="name">participant.tree</field>
+            <field name="model">participant</field>
             <field name="arch" type="xml">
                 <tree string="Participants" editable="bottom" multi_edit="1">
                     <field name="sequence" widget="handle"/>
@@ -18,15 +18,16 @@
                     <field name="position_level"/>
                     <field name="notes"/>
                     <field name="active" optional="hide"/>
-                    <field name="lead_id" invisible="context.get('default_lead_id')"/>
+                    <field name="lead_id" invisible="context.get('default_sale_order_id')"/>
+                    <field name="sale_order_id" invisible="context.get('default_lead_id')"/>
                 </tree>
             </field>
         </record>
 
         <!-- Participant Form View -->
-        <record id="crm_participant_form_view" model="ir.ui.view">
-            <field name="name">crm.participant.form</field>
-            <field name="model">crm.participant</field>
+        <record id="participant_form_view" model="ir.ui.view">
+            <field name="name">participant.form</field>
+            <field name="model">participant</field>
             <field name="arch" type="xml">
                 <form string="Participant">
                     <sheet>
@@ -56,6 +57,7 @@
                                 <field name="position_level"/>
                                 <field name="sequence"/>
                                 <field name="lead_id" readonly="context.get('default_lead_id')"/>
+                                <field name="state" widget="statusbar"/>
                             </group>
                         </group>
                         <group string="Additional Information">
@@ -67,9 +69,9 @@
         </record>
 
         <!-- Participant Search View -->
-        <record id="crm_participant_search_view" model="ir.ui.view">
-            <field name="name">crm.participant.search</field>
-            <field name="model">crm.participant</field>
+        <record id="participant_search_view" model="ir.ui.view">
+            <field name="name">participant.search</field>
+            <field name="model">participant</field>
             <field name="arch" type="xml">
                 <search string="Search Participants">
                     <field name="first_name"/>
@@ -77,25 +79,28 @@
                     <field name="email_address"/>
                     <field name="job_title_requiring_assessment"/>
                     <field name="position_level"/>
+                    <field name="gender"/>
                     <field name="lead_id"/>
+                    <field name="sale_order_id"/>
                     <separator/>
                     <filter string="Active" name="active" domain="[('active', '=', True)]"/>
                     <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
                     <separator/>
                     <group expand="0" string="Group By">
-                        <filter string="Lead/Opportunity" name="lead" context="{'group_by': 'lead_id'}"/>
-                        <filter string="Gender" name="gender" context="{'group_by': 'gender'}"/>
-                        <filter string="Job Title" name="job_title" context="{'group_by': 'job_title_requiring_assessment'}"/>
-                        <filter string="Position Level" name="position_level" context="{'group_by': 'position_level'}"/>
+                        <filter string="Lead/Opportunity" name="lead" context="{'group_by': 'lead_id'}" attrs="{'invisible': [('lead_id', '=', False)]}"/>
+                        <filter string="Sale Order" name="sale_order" context="{'group_by': 'sale_order_id'}" attrs="{'invisible': [('sale_order_id', '=', False)]}"/>
+                        <filter string="Gender" name="gender" context="{'group_by': 'gender'}" attrs="{'invisible': [('gender', '=', False)]}"/>
+                        <filter string="Job Title" name="job_title" context="{'group_by': 'job_title_requiring_assessment'}" attrs="{'invisible': [('job_title_requiring_assessment', '=', False)]}"/>
+                        <filter string="Position Level" name="position_level" context="{'group_by': 'position_level'}" attrs="{'invisible': [('position_level', '=', False)]}"/>
                     </group>
                 </search>
             </field>
         </record>
 
         <!-- Participant Kanban View -->
-        <record id="crm_participant_kanban_view" model="ir.ui.view">
-            <field name="name">crm.participant.kanban</field>
-            <field name="model">crm.participant</field>
+        <record id="participant_kanban_view" model="ir.ui.view">
+            <field name="name">participant.kanban</field>
+            <field name="model">participant</field>
             <field name="arch" type="xml">
                 <kanban class="o_kanban_mobile">
                     <field name="first_name"/>
@@ -137,12 +142,46 @@
             </field>
         </record>
 
-        <!-- Participant Action -->
-        <record id="action_crm_participant" model="ir.actions.act_window">
+         <!-- Action for viewing participants -->
+        <record id="action_view_lead_participants" model="ir.actions.act_window">
             <field name="name">Participants</field>
-            <field name="res_model">crm.participant</field>
+            <field name="res_model">participant</field>
+            <field name="view_mode">tree,form</field>
+            <field name="domain">[('lead_id', '=', active_id)]</field>
+            <field name="context">{'default_lead_id': active_id, 'search_default_active': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No participants yet!
+                </p>
+                <p>
+                    Add participants for this lead/opportunity. You can also import participant data from Excel or CSV files.
+                </p>
+            </field>
+        </record>
+
+        <!-- Action for viewing sale order participants -->
+        <record id="action_view_sale_order_participants" model="ir.actions.act_window">
+            <field name="name">Participants</field>
+            <field name="res_model">participant</field>
+            <field name="view_mode">tree,form</field>
+            <field name="domain">[('sale_order_id', '=', active_id)]</field>
+            <field name="context">{'default_sale_order_id': active_id, 'search_default_active': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No participants yet!
+                </p>
+                <p>
+                    Add participants for this sale order. You can also import participant data from Excel or CSV files.
+                </p>
+            </field>
+        </record>
+
+        <!-- Participant Action -->
+        <record id="action_participant" model="ir.actions.act_window">
+            <field name="name">Participants</field>
+            <field name="res_model">participant</field>
             <field name="view_mode">tree,kanban,form</field>
-            <field name="search_view_id" ref="crm_participant_search_view"/>
+            <field name="search_view_id" ref="participant_search_view"/>
             <field name="context">{'search_default_active': 1, 'group_by': 'lead_id'}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
@@ -156,10 +195,10 @@
         </record>
 
         <!-- Menu Item for Participants -->
-        <menuitem id="menu_crm_participant" 
+        <menuitem id="menu_participant" 
                   name="Participants" 
                   parent="crm.crm_menu_sales" 
-                  action="action_crm_participant"
+                  action="action_participant"
                   sequence="20"/>
 
     </data>

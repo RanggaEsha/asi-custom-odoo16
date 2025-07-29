@@ -1,55 +1,110 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="view_participant_form_inherit_done" model="ir.ui.view">
-        <field name="name">participant.form.inherit.done</field>
-        <field name="model">participant</field>
-        <field name="inherit_id" ref="peepl_participant.participant_form_view"/>
-        <field name="arch" type="xml">
-            <xpath expr="//form" position="inside">
-                <header>
-                    <button name="action_mark_completed" 
-                            type="object" 
-                            string="Mark Test Completed" 
-                            class="btn-primary"
-                            attrs="{'invisible': [('test_completed', '=', True)]}"/>
-                    <button name="action_mark_incomplete" 
-                            type="object" 
-                            string="Mark Test Incomplete" 
-                            class="btn-secondary"
-                            attrs="{'invisible': [('test_completed', '=', False)]}"/>
-                    <field name="test_completed" widget="boolean_toggle" 
-                            options="{'autosave': True}"/>
-                </header>
-            </xpath>
-        </field>
-    </record>
+    <data>
 
-    <!-- inherit participant tree -->
-    <record id="view_participant_tree_inherit_done" model="ir.ui.view">
-        <field name="name">participant.tree.inherit.done</field>
-        <field name="model">participant</field>
-        <field name="inherit_id" ref="peepl_participant.participant_tree_view"/>
-        <field name="arch" type="xml">
-            <xpath expr="//tree" position="inside">
-                <field name="sale_line_id" optional="hide"/>
-                <field name="order_partner_id" invisible="1"/>
-                <field name="test_completed"/>
-                <field name="completion_date"/>
-                <field name="unit_price" widget="monetary" optional="hide"/>
-                <field name="currency_id" invisible="1"/>
-                <button name="action_mark_completed" 
-                        type="object" 
-                        string="Mark Completed" 
-                        class="btn-success"
-                        attrs="{'invisible': [('test_completed', '=', True)]}"
-                        icon="fa-check"/>
-                <button name="action_mark_incomplete" 
-                        type="object" 
-                        string="Mark Incomplete" 
-                        class="btn-warning"
-                        attrs="{'invisible': [('test_completed', '=', False)]}"
-                        icon="fa-undo"/>
-            </xpath>
-        </field>
-    </record>
+        <!-- Create new participant form view for invoicing -->
+        <record id="participant_form_view_invoicing" model="ir.ui.view">
+            <field name="name">participant.form.invoicing</field>
+            <field name="model">participant</field>
+            <field name="arch" type="xml">
+                <form string="Participant">
+                    <header>
+                        <field name="state" widget="statusbar"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="first_name" placeholder="First Name" style="width: 40%"/>
+                                <field name="last_name" placeholder="Last Name" style="width: 40%; margin-left: 10px"/>
+                            </h1>
+                            <h3>
+                                <field name="job_title_requiring_assessment" placeholder="Job Title"/>
+                            </h3>
+                        </div>
+                        <group>
+                            <group string="Personal Information">
+                                <field name="gender"/>
+                                <field name="email_address" widget="email"/>
+                                <field name="mobile_phone" widget="phone"/>
+                                <field name="position_level"/>
+                            </group>
+                            <group string="Order Information">
+                        <field name="sale_order_id"/>
+                        <field name="order_partner_id" invisible="1"/>
+                        <field name="sale_line_id"/>
+                                <field name="project_id" readonly="1"/>
+                                <field name="sequence"/>
+                            </group>
+                        </group>
+                        <group string="Test Completion Status">
+                            <group>
+                                <field name="completion_date" attrs="{'invisible': [('state', '!=', 'confirmed')]}" readonly="1"/>
+                                <field name="unit_price" widget="monetary" readonly="1"/>
+                                <field name="currency_id" invisible="1"/>
+                            </group>
+                        </group>
+                        <group string="Additional Information">
+                            <field name="notes"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Create new participant tree view for invoicing -->
+        <record id="participant_tree_view_invoicing" model="ir.ui.view">
+            <field name="name">participant.tree.invoicing</field>
+            <field name="model">participant</field>
+            <field name="arch" type="xml">
+                <tree string="Participants" 
+                      decoration-success="state == 'confirmed'" 
+                      decoration-muted="state == 'not_yet_confirmed'">
+                    <field name="sequence" widget="handle"/>
+                    <field name="first_name"/>
+                    <field name="last_name"/>
+                    <field name="gender"/>
+                    <field name="email_address" widget="email"/>
+                    <field name="mobile_phone" widget="phone"/>
+                    <field name="job_title_requiring_assessment"/>
+                    <field name="position_level"/>
+                    <field name="sale_order_id"/>
+                    <field name="order_partner_id" invisible="1"/>
+                    <field name="sale_line_id" optional="hide"/>
+                    <field name="completion_date"/>
+                    <field name="unit_price" widget="monetary" optional="hide"/>
+                    <field name="currency_id" invisible="1"/>
+                </tree>
+            </field>
+        </record>
+
+        <!-- Action for Participant Invoicing -->
+        <record id="action_participant_invoicing" model="ir.actions.act_window">
+            <field name="name">Participants (Invoicing)</field>
+            <field name="res_model">participant</field>
+            <field name="view_mode">tree,form</field>
+            <field name="view_ids" eval="[(5, 0, 0),
+                (0, 0, {'view_mode': 'tree', 'view_id': ref('participant_tree_view_invoicing')}),
+                (0, 0, {'view_mode': 'form', 'view_id': ref('participant_form_view_invoicing')})]"/>
+            <field name="domain">[('sale_line_id', '!=', False)]</field>
+            <field name="context">{"group_by": ["sale_order_id"]}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No participants found for invoicing.
+                </p>
+                <p>
+                    Participants linked to sale order lines with participant-based invoicing will appear here.
+                    Mark them as completed when they finish their tests to trigger invoicing.
+                </p>
+            </field>
+        </record>
+
+        <!-- Menu Item -->
+        <menuitem id="menu_participant_invoicing"
+                  name="Participant Invoicing"
+                  parent="sale.sale_menu_root"
+                  action="action_participant_invoicing"
+                  sequence="35"
+                  groups="peepl_sale.group_project_participant"/>
+
+    </data>
 </odoo>

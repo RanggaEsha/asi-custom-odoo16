@@ -50,9 +50,8 @@ This module extends Odoo CRM with advanced assessment management capabilities:
     'data': [
             'security/security.xml',
             'security/ir.model.access.csv',
-            'views/assessment.xml',
             'views/crm_lead_view.xml',
-            'views/crm_participant.xml'
+
             
     ],
     'demo': [
