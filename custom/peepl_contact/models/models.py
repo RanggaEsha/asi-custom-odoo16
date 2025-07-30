@@ -140,6 +140,7 @@ class ResPartner(models.Model):
     
     # Reminder section fields
     agreement_date = fields.Date(string='Agreement Date', help='Date when the agreement was made')
+    expiration_date = fields.Date(string='Expiration Date', help='Date when the agreement expires')
     select_date = fields.Boolean(string='Select Exact Reminder Date', help='Check to set exact reminder date, uncheck to calculate from agreement date')
     reminder_number = fields.Integer(string='Number', help='Number of days/months/years before agreement date')
     reminder_period = fields.Selection([
@@ -153,23 +154,23 @@ class ResPartner(models.Model):
     reminder_sent = fields.Boolean(string='Reminder Sent', default=False, help='Track if reminder has been sent')
     reminder_active = fields.Boolean(string='Reminder Active', default=True, help='Enable/disable reminder for this contact')
 
-    @api.depends('agreement_date', 'reminder_number', 'reminder_period', 'select_date', 'reminder_date_manual')
+    @api.depends('expiration_date', 'reminder_number', 'reminder_period', 'select_date', 'reminder_date_manual')
     def _compute_reminder_date(self):
         """Compute reminder date based on agreement date and period settings"""
         for record in self:
             if record.select_date:
                 # Use manually set date when select_date is True
                 record.reminder_date = record.reminder_date_manual
-            elif record.agreement_date and record.reminder_number and record.reminder_period:
+            elif record.expiration_date and record.reminder_number and record.reminder_period:
                 # Calculate date when select_date is False
-                agreement_date = record.agreement_date
-                
+                expiration_date = record.expiration_date
+
                 if record.reminder_period == 'days':
-                    record.reminder_date = agreement_date - timedelta(days=record.reminder_number)
+                    record.reminder_date = expiration_date - timedelta(days=record.reminder_number)
                 elif record.reminder_period == 'months':
-                    record.reminder_date = agreement_date - relativedelta(months=record.reminder_number)
+                    record.reminder_date = expiration_date - relativedelta(months=record.reminder_number)
                 elif record.reminder_period == 'years':
-                    record.reminder_date = agreement_date - relativedelta(years=record.reminder_number)
+                    record.reminder_date = expiration_date - relativedelta(years=record.reminder_number)
                 else:
                     record.reminder_date = False
             else:
@@ -220,7 +221,7 @@ class ResPartner(models.Model):
             # Prepare email template variables
             template_vars = {
                 'partner_name': record.name,
-                'agreement_date': record.agreement_date,
+                'expiration_date': record.expiration_date,
                 'reminder_date': record.reminder_date,
                 'company_name': self.env.company.name,
             }

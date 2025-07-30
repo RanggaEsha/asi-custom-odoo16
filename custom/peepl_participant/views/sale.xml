@@ -17,7 +17,7 @@
                  <!-- Add participant data field using xpath -->
                 <xpath expr="//field[@name='payment_term_id']" position="after">
                     <field name="participant_count" invisible="1"/>
-                    <field name="has_participant_data" string="Has Participant Data" attrs="{'readonly': [('participant_count', '>', 0)]}"/>
+                    <field name="has_participant_data" string="Has Participant Data" attrs="{'readonly': [('participant_count', '>', 0), ('state', 'in', ['sale', 'closed'])]}"/>
                 </xpath>
 
                 <!-- OPTION 3: Add to existing Extra Info tab -->

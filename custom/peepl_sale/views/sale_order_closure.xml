@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Enhanced Sale Order Form View with Complete Closure System -->
+        <record id="sale_order_form_closure_enhanced" model="ir.ui.view">
+            <field name="name">sale.order.form.closure.enhanced</field>
+            <field name="model">sale.order</field>
+            <field name="inherit_id" ref="sale.view_order_form"/>
+            <field name="arch" type="xml">
+                
+
+                <div name="button_box" position="inside">
+                    <!-- Spacer button: only visible when order is closed -->
+                    <button name="action_show_closed_info" class="oe_stat_button" type="object"
+                            style="visibility: hidden; height: 32px; margin-bottom: 2px;"
+                            attrs="{'invisible': [('state', '!=', 'closed')]}">
+                    </button>
+                </div>
+                <!-- Add Closed Ribbon -->
+                <xpath expr="//div[@name='button_box']" position="before">
+                    <widget name="web_ribbon" 
+                            title="CLOSED" 
+                            bg_color="bg-danger" 
+                            attrs="{'invisible': [('state', '!=', 'closed')]}"/>
+                </xpath>
+
+                <!-- Add Close Order button (appears only in sale state) -->
+                <xpath expr="//button[@name='action_confirm'][not(@id)]" position="after">
+                    <button name="action_close_with_reason" 
+                            type="object" 
+                            string="Close Order" 
+                            class="btn-warning"
+                            data-hotkey="shift+c"
+                            title="Close this order to prevent further operations"
+                            attrs="{'invisible': [('state', '!=', 'sale')]}"
+                            icon="fa-lock"/>
+                </xpath>
+
+                <!-- Add Quick Close button (no wizard) -->
+                <xpath expr="//button[@name='action_close_with_reason']" position="after">
+                    <button name="action_close_order" 
+                            type="object" 
+                            string="Quick Close" 
+                            class="btn-danger"
+                            title="Close order without reason"
+                            attrs="{'invisible': [('state', '!=', 'sale')]}"
+                            confirm="Are you sure you want to close this order immediately?"
+                            icon="fa-times"/>
+                </xpath>
+
+                <!-- Add Reopen button for closed orders -->
+                <xpath expr="//button[@name='action_draft']" position="after">
+                    <button name="action_reopen_order" 
+                            type="object" 
+                            string="Reopen Order" 
+                            class="btn-success"
+                            data-hotkey="shift+o"
+                            title="Reopen this closed order"
+                            attrs="{'invisible': [('state', '!=', 'closed')]}"
+                            confirm="Are you sure you want to reopen this closed order?"
+                            icon="fa-unlock"/>
+                </xpath>
+
+                <!-- Update statusbar to include closed state -->
+                <xpath expr="//field[@name='state'][@widget='statusbar']" position="attributes">
+                    <attribute name="statusbar_visible">draft,sent,sale,closed</attribute>
+                    <attribute name="statusbar_colors">{"closed": "danger"}</attribute>
+                </xpath>
+
+                <!-- Make order lines readonly when closed -->
+                <xpath expr="//field[@name='order_line']" position="attributes">
+                    <attribute name="attrs">{'readonly': [('state', 'in', ('done','cancel','closed'))]}</attribute>
+                </xpath>
+
+
+                <!-- Make all groups readonly when state is closed -->
+                <xpath expr="//group" position="attributes">
+                    <attribute name="attrs">{'readonly': [('state', '=', 'closed')]}</attribute>
+                </xpath>
+                <!-- Make all notebooks readonly when state is closed -->
+                <xpath expr="//notebook" position="attributes">
+                    <attribute name="attrs">{'readonly': [('state', '=', 'closed')]}</attribute>
+                </xpath>
+                <!-- Add closure fields to order info -->
+                <xpath expr="//field[@name='payment_term_id']" position="after">
+                    <field name="is_closed" invisible="1"/>
+                </xpath>
+
+                <!-- Add closure information in Other Info tab -->
+                <xpath expr="//field[@name='invoice_status'][@groups='base.group_no_one']" position="after">
+                    <field name="closed_date" readonly="1" attrs="{'invisible': [('state', '!=', 'closed')]}"/>
+                    <field name="closed_by" readonly="1" attrs="{'invisible': [('state', '!=', 'closed')]}"/>
+                </xpath>
+
+                <xpath expr="//button[@name='action_preview_sale_order']" position="attributes">
+                    <attribute name="attrs">{'invisible': [('state', '=', 'closed')]}</attribute>
+                </xpath>
+
+                <!-- Add close reason in a separate group -->
+                <xpath expr="//group[@name='sale_reporting']" position="after">
+                    <group string="Closure Information" 
+                           name="closure_info" 
+                           attrs="{'invisible': [('state', '!=', 'closed')]}"
+                           col="1">
+                        <field name="close_reason" 
+                               readonly="1" 
+                               nolabel="1" 
+                               placeholder="No reason provided"
+                               widget="text"/>
+                    </group>
+                </xpath>
+
+                <!-- Add closed indicator in oe_title -->
+                <xpath expr="//div[@class='oe_title']" position="inside">
+                    <div class="badge badge-danger" 
+                         attrs="{'invisible': [('state', '!=', 'closed')]}"
+                         style="position: absolute; top: -10px; right: 0;">
+                    </div>
+                </xpath>
+
+            </field>
+        </record>
+
+        <!-- Enhanced Close Order Wizard -->
+        <record id="sale_order_close_wizard_form_enhanced" model="ir.ui.view">
+            <field name="name">sale.order.close.wizard.form.enhanced</field>
+            <field name="model">sale.order.close.wizard</field>
+            <field name="arch" type="xml">
+                <form string="Close Sale Order">
+                    <div class="alert alert-warning" role="alert">
+                        <strong>Warning:</strong> Closing this order will prevent all further operations. 
+                        This action can be reversed by reopening the order.
+                    </div>
+                    <group>
+                        <group>
+                            <field name="order_name" readonly="1"/>
+                            <field name="partner_id" readonly="1"/>
+                            <field name="amount_total" readonly="1"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <field name="close_reason"
+                            nolabel="1" 
+                            placeholder="Please provide a detailed reason for closing this order..."
+                            widget="text"
+                            style="min-height: 100px;"/>
+                    <footer>
+                        <button name="action_close_order" 
+                                type="object" 
+                                string="Close Order" 
+                                class="btn-primary"
+                                icon="fa-lock"/>
+                        <button string="Cancel" 
+                                class="btn-secondary" 
+                                special="cancel"
+                                icon="fa-times"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+        <!-- Enhanced Tree View with Closure Information -->
+        <record id="sale_order_tree_closure_enhanced" model="ir.ui.view">
+            <field name="name">sale.order.tree.closure.enhanced</field>
+            <field name="model">sale.order</field>
+            <field name="inherit_id" ref="sale.view_quotation_tree"/>
+            <field name="arch" type="xml">
+                <!-- Add decoration for closed orders -->
+                <xpath expr="//tree" position="attributes">
+                    <attribute name="decoration-muted">state == 'closed'</attribute>
+                    <attribute name="decoration-bf">state == 'sale'</attribute>
+                </xpath>
+                
+                <!-- Add closed info columns at the end of the tree -->
+                <xpath expr="//tree" position="inside">
+                    <field name="closed_date" 
+                           string="Closed Date"
+                           optional="hide" 
+                           attrs="{'invisible': [('state', '!=', 'closed')]}"/>
+                    <field name="closed_by" 
+                           string="Closed By"
+                           optional="hide" 
+                           attrs="{'invisible': [('state', '!=', 'closed')]}"/>
+                </xpath>
+
+                <!-- Add state badge -->
+                <xpath expr="//field[@name='state']" position="attributes">
+                    <attribute name="widget">badge</attribute>
+                    <attribute name="decoration-danger">state == 'closed'</attribute>
+                    <attribute name="decoration-success">state == 'sale'</attribute>
+                    <attribute name="decoration-info">state == 'sent'</attribute>
+                    <attribute name="decoration-muted">state == 'draft'</attribute>
+                </xpath>
+            </field>
+        </record>
+
+        <!-- Enhanced Search View -->
+        <record id="sale_order_search_closure_enhanced" model="ir.ui.view">
+            <field name="name">sale.order.search.closure.enhanced</field>
+            <field name="model">sale.order</field>
+            <field name="inherit_id" ref="sale.view_sales_order_filter"/>
+            <field name="arch" type="xml">
+                
+                <!-- Add closed filter inside search -->
+                <xpath expr="//search" position="inside">
+                    <filter string="Closed Orders" name="closed" domain="[('state', '=', 'closed')]"/>
+                    <separator/>
+                    <filter string="Active Orders" name="active" domain="[('state', '!=', 'closed')]"/>
+                </xpath>
+
+                <!-- Add search by closure fields -->
+                <xpath expr="//field[@name='name']" position="after">
+                    <field name="closed_by"/>
+                    <field name="close_reason"/>
+                </xpath>
+
+                <!-- Add group by closure inside search -->
+                <xpath expr="//search" position="inside">
+                    <field name="state" invisible="1"/>
+                    <filter string="Closure Date" name="group_closed_date" 
+                            context="{'group_by': 'closed_date'}" 
+                            attrs="{'invisible': [('state', '!=', 'closed')]}"/>
+                    <filter string="Closed By" name="group_closed_by" 
+                            context="{'group_by': 'closed_by'}" 
+                            attrs="{'invisible': [('state', '!=', 'closed')]}"/>
+                </xpath>
+
+            </field>
+        </record>
+
+    </data>
+</odoo>

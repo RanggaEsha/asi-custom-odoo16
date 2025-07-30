@@ -6,6 +6,43 @@ from odoo.exceptions import ValidationError
 
 
 class Participant(models.Model):
+    def action_set_rescheduled(self):
+        """Set participant state to rescheduled, show notification, and refresh view"""
+        for participant in self:
+            participant.state = 'rescheduled'
+            participant.completion_date = False
+            return [
+                {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': _('Rescheduled'),
+                        'message': _('Participant %s has been rescheduled.') % participant.full_name,
+                        'type': 'warning',
+                    }
+                },
+                {'type': 'ir.actions.act_window_close'},
+                {'type': 'ir.actions.client', 'tag': 'reload'},
+            ]
+
+    def action_set_cancelled(self):
+        """Set participant state to cancelled, show notification, and refresh view"""
+        for participant in self:
+            participant.state = 'cancelled'
+            participant.completion_date = False
+            return [
+                {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': _('Cancelled'),
+                        'message': _('Participant %s has been cancelled.') % participant.full_name,
+                        'type': 'danger',
+                    }
+                },
+                {'type': 'ir.actions.act_window_close'},
+                {'type': 'ir.actions.client', 'tag': 'reload'},
+            ]
     _inherit = 'participant'
 
     # Add invoicing-related fields to existing participant model
@@ -141,21 +178,23 @@ class Participant(models.Model):
                 ))
 
     def action_set_confirmed(self):
-        """Override to show enhanced notification for sale orders"""
+        """Override to show enhanced notification for sale orders and refresh view"""
         result = super().action_set_confirmed()
-        
-        # Update the notification for sale order context
         for participant in self:
             if participant.sale_line_id:
-                return {
-                    'type': 'ir.actions.client',
-                    'tag': 'display_notification',
-                    'params': {
-                        'title': _('Test Completed'),
-                        'message': _('Participant %s test completed! Invoice quantity updated.') % participant.full_name,
-                        'type': 'success',
-                    }
-                }
+                return [
+                    {
+                        'type': 'ir.actions.client',
+                        'tag': 'display_notification',
+                        'params': {
+                            'title': _('Test Completed'),
+                            'message': _('Participant %s test completed! Invoice quantity updated.') % participant.full_name,
+                            'type': 'success',
+                        }
+                    },
+                    {'type': 'ir.actions.act_window_close'},
+                    {'type': 'ir.actions.client', 'tag': 'reload'},
+                ]
         return result
 
     @api.model

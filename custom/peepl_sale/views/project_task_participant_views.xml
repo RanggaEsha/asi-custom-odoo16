@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Inherit Project Task Form View to show participants if parent project is participant-based -->
+        <record id="project_task_view_form_inherit_participant" model="ir.ui.view">
+            <field name="name">project.task.form.participant</field>
+            <field name="model">project.task</field>
+            <field name="inherit_id" ref="project.view_task_form2"/>
+            <field name="arch" type="xml">
+                <!-- Add participants tab if parent project is participant-based -->
+                <xpath expr="//notebook" position="inside">
+                    <field name="has_project_participants" invisible="1"/>
+                    <page name="participants"
+                          string="Participants"
+                          attrs="{'invisible': [('has_project_participants', '=', False)]}"
+                          groups="peepl_sale.group_project_participant">
+                        <field name="project_id" invisible="1"/>
+                        <field name="project_participant_ids" context="{'default_project_id': project_id}" domain="[('project_id', '=', project_id)]">
+                            <tree editable="bottom"
+                                  decoration-success="state == 'confirmed'"
+                                  decoration-warning="state == 'rescheduled'"
+                                  decoration-danger="state == 'cancelled'"
+                                  decoration-muted="state == 'not_yet_confirmed'">
+                                <field name="sequence" widget="handle"/>
+                                <field name="first_name"/>
+                                <field name="last_name"/>
+                                <field name="email_address" widget="email"/>
+                                <field name="mobile_phone" widget="phone"/>
+                                <field name="job_title_requiring_assessment"/>
+                                <field name="sale_line_id" readonly="1"/>
+                                <field name="state" widget="badge"
+                                       decoration-success="state == 'confirmed'"
+                                       decoration-warning="state == 'rescheduled'"
+                                       decoration-danger="state == 'cancelled'"
+                                       decoration-info="state == 'not_yet_confirmed'"/>
+                                <field name="completion_date" readonly="1"/>
+                            </tree>
+                        </field>
+                    </page>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>

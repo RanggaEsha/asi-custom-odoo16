@@ -72,42 +72,45 @@ class Project(models.Model):
         return action
 
     def action_mark_all_participants_completed(self):
-        """Action to mark all participants as test completed"""
+        """Action to mark all participants as test completed and refresh view"""
         self.ensure_one()
-        
         incomplete_participants = self.participant_ids.filtered(lambda p: p.state != 'confirmed')
         if not incomplete_participants:
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': _('Info'),
-                    'message': _('All participants have already completed their tests!'),
-                    'type': 'info',
-                }
-            }
-        
+            return [
+                {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': _('Info'),
+                        'message': _('All participants have already completed their tests!'),
+                        'type': 'info',
+                    }
+                },
+                {'type': 'ir.actions.act_window_close'},
+                {'type': 'ir.actions.client', 'tag': 'reload'},
+            ]
         incomplete_participants.write({
             'state': 'confirmed',
             'completion_date': fields.Datetime.now()
         })
-        
-        # Update related sale order lines
         sale_lines = incomplete_participants.mapped('sale_line_id').filtered(
             lambda sol: sol.qty_delivered_method == 'participants'
         )
         if sale_lines:
             sale_lines._compute_qty_delivered()
-        
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': _('Success'),
-                'message': _('%d participants marked as test completed!') % len(incomplete_participants),
-                'type': 'success',
-            }
-        }
+        return [
+            {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Success'),
+                    'message': _('%d participants marked as test completed!') % len(incomplete_participants),
+                    'type': 'success',
+                }
+            },
+            {'type': 'ir.actions.act_window_close'},
+            {'type': 'ir.actions.client', 'tag': 'reload'},
+        ]
 
     def _get_stat_buttons(self):
         """Override to add participant statistics"""

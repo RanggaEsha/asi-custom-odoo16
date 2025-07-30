@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
+
 from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 
 
 class CrmLead(models.Model):
@@ -31,6 +33,20 @@ class CrmLead(models.Model):
 
 
 class SaleOrder(models.Model):
+
+    def action_show_closed_info(self):
+        """Show a notification that the sale is closed."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Order Closed'),
+                'message': _('This sale order is closed.'),
+                'type': 'warning',
+                'sticky': False,
+            }
+        }
     _inherit = 'sale.order'
 
     is_product_participant = fields.Boolean(
@@ -48,50 +64,51 @@ class SaleOrder(models.Model):
             )
 
     def action_mark_all_participants_completed(self):
-        """Mark all participants in this order as confirmed (test completed)"""
+        """Mark all participants in this order as confirmed (test completed) and refresh view"""
         self.ensure_one()
-        
         incomplete_participants = self.participant_ids.filtered(lambda p: p.state != 'confirmed')
         if not incomplete_participants:
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': _('Info'),
-                    'message': _('All participants have already completed their tests!'),
-                    'type': 'info',
-                }
-            }
-        
+            return [
+                {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': _('Info'),
+                        'message': _('All participants have already completed their tests!'),
+                        'type': 'info',
+                    }
+                },
+                {'type': 'ir.actions.act_window_close'},
+                {'type': 'ir.actions.client', 'tag': 'reload'},
+            ]
         # Mark participants as confirmed
         incomplete_participants.write({
             'state': 'confirmed',
             'completion_date': fields.Datetime.now()
         })
-        
-        # Update related sale order lines quantities
         participant_sale_lines = incomplete_participants.mapped('sale_line_id').filtered(
             lambda sol: sol.qty_delivered_method == 'participants'
         )
         if participant_sale_lines:
             participant_sale_lines._compute_qty_delivered()
-        
-        # Post message on sale order
         participant_names = ', '.join(incomplete_participants.mapped('full_name'))
         message = _(
             '%d participants marked as test completed: %s'
         ) % (len(incomplete_participants), participant_names)
         self.message_post(body=message)
-        
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': _('Success'),
-                'message': _('%d participants marked as test completed!') % len(incomplete_participants),
-                'type': 'success',
-            }
-        }
+        return [
+            {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Success'),
+                    'message': _('%d participants marked as test completed!') % len(incomplete_participants),
+                    'type': 'success',
+                }
+            },
+            {'type': 'ir.actions.act_window_close'},
+            {'type': 'ir.actions.client', 'tag': 'reload'},
+        ]
 
     def action_view_participants_invoicing(self):
         """Action to view participants specifically for invoicing purposes"""
@@ -145,6 +162,18 @@ class SaleOrder(models.Model):
                 order.has_participant_data = True
         
         return result
+    
+    def unlink(self):
+        """Delete related participants only if they do not have a lead_id; otherwise, just clear sale_order_id. Prevent deletion if state is 'closed'."""
+        for order in self:
+            if order.state == 'closed':
+                raise UserError(_('You cannot delete a closed sale order. Please reopen it first.'))
+            for participant in order.participant_ids:
+                if participant.lead_id:
+                    participant.sale_order_id = False
+                else:
+                    participant.unlink()
+        return super().unlink()
 
     @api.model
     def create(self, vals):
