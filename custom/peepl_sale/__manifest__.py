@@ -77,6 +77,7 @@ Technical Details:
         'views/project_views.xml',
         'views/project_task_participant_views.xml',
         'views/sale_order_closure.xml',
+        'views/account_move.xml',
     ],
     'assets': {
         'web.assets_backend': [

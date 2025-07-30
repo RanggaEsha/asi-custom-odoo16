@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Enhanced Invoice Form with Sale Order Integration (Accounting-Only) -->
+        <record id="account_move_form_inherit_sale_order" model="ir.ui.view">
+            <field name="name">account.move.form.sale.order</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_move_form"/>
+            <field name="arch" type="xml">
+                <!-- Add Source Sale Order field after name with enhanced styling -->
+                <xpath expr="//field[@name='attention']" position="before">
+                    <field name="source_sale_order_id" 
+                           placeholder="🔍 Select a sale order to auto-populate this invoice..."
+                           domain="[('state', 'in', ['sale', 'done']), ('partner_id', '!=', False)]"
+                           options="{'no_create': True, 'no_quick_create': True}"
+                           attrs="{'readonly': [('state', '!=', 'draft')]}"
+                           widget="many2one"
+                           class="o_field_highlight"/>
+                </xpath>
+
+                <!-- Add Participants button in button box -->
+                <xpath expr="//div[@name='button_box']" position="inside">
+                    <button name="action_view_participants"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-users"
+                            attrs="{'invisible': ['|', ('has_participant_data', '=', False), ('participant_count', '=', 0)]}">
+                        <field name="participant_count" widget="statinfo" string="Participants"/>
+                    </button>
+                </xpath>
+
+                <!-- Add Assessment Information section with enhanced layout after invoice_date, which is always present -->
+                <xpath expr="//group" position="after">
+                    <group string="📊 Assessment Information" 
+                           name="assessment_info_group" 
+                           attrs="{'invisible': [('has_participant_data', '=', False)]}"
+                           col="4" 
+                           class="o_group_highlight">
+                        <label for="test_start_date" string="Assessment Period" colspan="1"/>
+                        <div colspan="3">
+                            <field name="test_start_date" class="oe_inline" style="width: 45%;" readonly="1"/>
+                            <span style="margin: 0 8px; font-weight: bold;">to</span>
+                            <field name="test_finish_date" class="oe_inline" style="width: 45%;" readonly="1"/>
+                        </div>
+                        <label for="type_of_assessment" string="Type of Assessment" colspan="1"/>
+                        <div colspan="3">
+                            <field name="type_of_assessment" 
+                                   widget="many2many_tags"
+                                   options="{'color_field': 'color'}"
+                                   readonly="1"/>
+                        </div>
+                        <label for="assessment_language" string="Assessment Language" colspan="1"/>
+                        <div colspan="3">
+                            <field name="assessment_language" 
+                                   widget="many2many_tags"
+                                   options="{'color_field': 'color'}"
+                                   readonly="1"/>
+                        </div>
+                        <label for="purpose" string="Purpose" colspan="1"/>
+                        <div colspan="3">
+                            <field name="purpose" readonly="1" style="width: 400px;" widget="text"/>
+                        </div>
+                    </group>
+                </xpath>
+
+                <!-- Add computed fields -->
+                <xpath expr="//field[@name='partner_id']" position="after">
+                    <field name="has_participant_data" invisible="1"/>
+                    <field name="participant_count" invisible="1"/>
+
+                </xpath>
+            </field>
+        </record>
+
+        <!-- Enhanced Invoice Line Tree View -->
+        <record id="account_move_line_tree_inherit_participants" model="ir.ui.view">
+            <field name="name">account.move.line.tree.participants</field>
+            <field name="model">account.move.line</field>
+            <field name="inherit_id" ref="account.view_move_line_tree"/>
+            <field name="arch" type="xml">
+                
+                <!-- Add participant count column with better visibility -->
+                <xpath expr="//field[@name='name']" position="after">
+                    <field name="related_participant_count" 
+                           string="👥 Participants"
+                           attrs="{'invisible': [('related_participant_count', '=', 0)]}"
+                           optional="show"
+                           widget="integer"/>
+                </xpath>
+                
+            </field>
+        </record>
+
+        <!-- Invoice Tree View Enhancement -->
+        <record id="account_move_tree_inherit_sale_order" model="ir.ui.view">
+            <field name="name">account.move.tree.sale.order</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_move_tree"/>
+            <field name="arch" type="xml">
+                
+                <!-- Add source sale order column -->
+                <xpath expr="//field[@name='partner_id']" position="before">
+                    <field name="source_sale_order_id" 
+                           string="📋 Source SO"
+                           optional="hide"/>
+                    <field name="participant_count" 
+                           string="👥 Participants"
+                           attrs="{'invisible': [('participant_count', '=', 0)]}"
+                           optional="hide"/>
+                </xpath>
+                
+                <!-- Add decorations for participant-based invoices -->
+                <xpath expr="//tree" position="attributes">
+                    <attribute name="decoration-info">participant_count > 0</attribute>
+                </xpath>
+                
+            </field>
+        </record>
+
+        <!-- Invoice Search View Enhancement -->
+        <record id="account_move_search_inherit_sale_order" model="ir.ui.view">
+            <field name="name">account.move.search.sale.order</field>
+            <field name="model">account.move</field>
+            <field name="inherit_id" ref="account.view_account_invoice_filter"/>
+            <field name="arch" type="xml">
+                
+                <!-- Add search by sale order -->
+                <xpath expr="//field[@name='partner_id']" position="after">
+                    <field name="source_sale_order_id" string="Source Sale Order"/>
+                </xpath>
+                
+                <!-- Add filters -->
+                <xpath expr="//filter[@name='late']" position="after">
+                    <separator/>
+                    <filter string=" From Sale Orders" name="from_sale_orders" 
+                            domain="[('source_sale_order_id', '!=', False)]"/>
+                    <filter string="🎯 Assessment Invoices" name="assessment_invoices" 
+                            domain="[('has_participant_data', '=', True)]"/>
+                </xpath>
+                
+                <!-- Add group by after the last filter in the search view -->
+                <xpath expr="//filter[last()]" position="after">
+                    <filter string="Source Sale Order" name="group_source_sale_order" 
+                            context="{'group_by': 'source_sale_order_id'}"/>
+                </xpath>
+                
+            </field>
+        </record>
+
+    </data>
+</odoo>

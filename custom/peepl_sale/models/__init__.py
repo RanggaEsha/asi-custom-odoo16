@@ -9,3 +9,4 @@ from . import res_config_setting
 from . import sale_order_close_wizard
 from . import sale_order_closure
 from . import project_task
+from . import account_move
