@@ -114,7 +114,7 @@
             <field name="model">crm.lead</field>
             <field name="inherit_id" ref="crm.crm_lead_view_form" />
             <field name="arch" type="xml">
-                <xpath expr="//header/button[@name='493']" position="after">
+                <xpath expr="//header" position="inside">
                     <button name="%(action_view_task_form)d" string="Create Task" type="action" class="btn-primary"/>
                     <button name="action_handover_to_solution_delivery" string="Handover to Team" type="object" 
                             class="btn-secondary"
