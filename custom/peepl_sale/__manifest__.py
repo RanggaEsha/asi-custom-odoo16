@@ -77,9 +77,7 @@ Technical Details:
     ],
     'assets': {
         'web.assets_backend': [
-            'peepl_sale/static/src/components/**/*.js',
-            'peepl_sale/static/src/components/**/*.xml',
-            'peepl_sale/static/src/scss/**/*.scss',
+            'peepl_sale/static/src/components/project_right_side_panel/project_right_side_panel.xml',
         ],
     },
     'demo': [],

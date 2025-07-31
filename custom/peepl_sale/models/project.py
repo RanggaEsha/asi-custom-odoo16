@@ -220,3 +220,11 @@ class Project(models.Model):
             ]
         
         return result
+    
+    def get_last_update_or_default(self):
+        if not self or len(self) != 1:
+            return {
+                'status': _('Set Status'),
+                'color': 0,
+            }
+        return super().get_last_update_or_default()

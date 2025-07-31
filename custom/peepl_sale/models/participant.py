@@ -6,44 +6,8 @@ from odoo.exceptions import ValidationError
 
 
 class Participant(models.Model):
-    def action_set_rescheduled(self):
-        """Set participant state to rescheduled, show notification, and refresh view"""
-        for participant in self:
-            participant.state = 'rescheduled'
-            participant.completion_date = False
-            return [
-                {
-                    'type': 'ir.actions.client',
-                    'tag': 'display_notification',
-                    'params': {
-                        'title': _('Rescheduled'),
-                        'message': _('Participant %s has been rescheduled.') % participant.full_name,
-                        'type': 'warning',
-                    }
-                },
-                {'type': 'ir.actions.act_window_close'},
-                {'type': 'ir.actions.client', 'tag': 'reload'},
-            ]
-
-    def action_set_cancelled(self):
-        """Set participant state to cancelled, show notification, and refresh view"""
-        for participant in self:
-            participant.state = 'cancelled'
-            participant.completion_date = False
-            return [
-                {
-                    'type': 'ir.actions.client',
-                    'tag': 'display_notification',
-                    'params': {
-                        'title': _('Cancelled'),
-                        'message': _('Participant %s has been cancelled.') % participant.full_name,
-                        'type': 'danger',
-                    }
-                },
-                {'type': 'ir.actions.act_window_close'},
-                {'type': 'ir.actions.client', 'tag': 'reload'},
-            ]
     _inherit = 'participant'
+    """Extends existing participant model for participant-based invoicing"""
 
     # Add invoicing-related fields to existing participant model
     sale_line_id = fields.Many2one(
@@ -196,6 +160,44 @@ class Participant(models.Model):
                     {'type': 'ir.actions.client', 'tag': 'reload'},
                 ]
         return result
+    
+    def action_set_rescheduled(self):
+        """Set participant state to rescheduled, show notification, and refresh view"""
+        for participant in self:
+            participant.state = 'rescheduled'
+            participant.completion_date = False
+            return [
+                {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': _('Rescheduled'),
+                        'message': _('Participant %s has been rescheduled.') % participant.full_name,
+                        'type': 'warning',
+                    }
+                },
+                {'type': 'ir.actions.act_window_close'},
+                {'type': 'ir.actions.client', 'tag': 'reload'},
+            ]
+
+    def action_set_cancelled(self):
+        """Set participant state to cancelled, show notification, and refresh view"""
+        for participant in self:
+            participant.state = 'cancelled'
+            participant.completion_date = False
+            return [
+                {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': _('Cancelled'),
+                        'message': _('Participant %s has been cancelled.') % participant.full_name,
+                        'type': 'danger',
+                    }
+                },
+                {'type': 'ir.actions.act_window_close'},
+                {'type': 'ir.actions.client', 'tag': 'reload'},
+            ]
 
     @api.model
     def _get_fields_to_export(self):
