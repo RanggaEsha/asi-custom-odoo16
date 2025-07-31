@@ -16,7 +16,8 @@
                           groups="peepl_sale.group_project_participant">
                         <field name="project_id" invisible="1"/>
                         <field name="project_participant_ids" context="{'default_project_id': project_id}" domain="[('project_id', '=', project_id)]">
-                            <tree editable="bottom"
+                            <tree
+                                  no_open="1"
                                   decoration-success="state == 'confirmed'"
                                   decoration-warning="state == 'rescheduled'"
                                   decoration-danger="state == 'cancelled'"
