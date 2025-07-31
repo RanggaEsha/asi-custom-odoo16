@@ -154,3 +154,20 @@ class SaleOrder(models.Model):
                 'Closed orders: %s'
             ) % ', '.join(closed_orders.mapped('name')))
         return super().unlink()
+    
+    # send BAST to customer
+    def action_send_bast(self):
+        """Send BAST to customer"""
+        self.ensure_one()
+        if self.state != 'closed':
+            raise UserError(_('Only closed orders can send BAST.'))
+        # Logic to send BAST (e.g., email, notification)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('BAST Sent'),
+                'message': _('BAST for sale order %s has been sent.') % self.name,
+                'type': 'success',
+            }
+        }

@@ -60,6 +60,18 @@
                             attrs="{'invisible': [('state', '!=', 'closed')]}"
                             confirm="Are you sure you want to reopen this closed order?"
                             icon="fa-unlock"/>
+                    <button name="action_send_bast" 
+                            type="object" 
+                            string="Send BAST" 
+                            class="btn-secondary"
+                            title="Send BAST to customer"
+                            attrs="{'invisible': [('state', '!=', 'closed')]}"
+                            icon="fa-paper-plane"/>
+                </xpath>
+
+                <!-- make invisible create invoice button all time -->
+                <xpath expr="//button[@name='439']" position="attributes">
+                    <attribute name="invisible">1</attribute>
                 </xpath>
 
                 <!-- Update statusbar to include closed state -->

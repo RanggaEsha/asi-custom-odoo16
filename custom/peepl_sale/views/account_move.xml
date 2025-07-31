@@ -30,6 +30,11 @@
                     </button>
                 </xpath>
 
+                <!-- make invisible action_view_source_sale_orders all time -->
+                <xpath expr="//button[@name='action_view_source_sale_orders']" position="attributes">
+                    <attribute name="invisible">1</attribute>
+                </xpath>
+                
                 <!-- Add Assessment Information section with enhanced layout after invoice_date, which is always present -->
                 <xpath expr="//group" position="after">
                     <group string="📊 Assessment Information" 
