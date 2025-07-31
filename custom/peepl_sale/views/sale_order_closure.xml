@@ -70,9 +70,9 @@
                 </xpath>
 
                 <!-- make invisible create invoice button all time -->
-                <!-- <xpath expr="//button[@name='439']" position="attributes">
+                <xpath expr="//button[@name='439']" position="attributes">
                     <attribute name="invisible">1</attribute>
-                </xpath> -->
+                </xpath>
 
                 <!-- Update statusbar to include closed state -->
                 <xpath expr="//field[@name='state'][@widget='statusbar']" position="attributes">

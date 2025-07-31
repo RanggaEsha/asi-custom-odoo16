@@ -46,7 +46,8 @@
                 <t t-if="state &amp;&amp; state.data &amp;&amp; state.data.participants">
                     <button
                         t-if="state.data.participants.pending &gt; 0"
-                        t-on-click.prevent="markAllParticipantsCompleted"
+                        onclick="markAllParticipantsCompleted(event)"
+                        t-att-data-project-id="projectId"
                         class="btn btn-success mb-2 w-100"
                     >
                         Mark All Test Completed
@@ -68,13 +69,13 @@
                                 <td><t t-esc="p.mobile_phone"/></td>
                                 <td><t t-esc="p.state"/></td>
                                 <td>
-                                    <button t-if="p.state === 'not_yet_confirmed'" t-on-click.prevent="setParticipantConfirmed" t-att-data-id="p.id" class="btn btn-success btn-sm" title="Complete">
+                                    <button t-if="p.state === 'not_yet_confirmed'" onclick="setParticipantConfirmed(event)" t-att-data-id="p.id" class="btn btn-success btn-sm" title="Complete">
                                         <i class="fa fa-check"/>
                                     </button>
-                                    <button t-if="p.state === 'not_yet_confirmed'" t-on-click.prevent="setParticipantRescheduled" t-att-data-id="p.id" class="btn btn-warning btn-sm" title="Reschedule">
+                                    <button t-if="p.state === 'not_yet_confirmed'" onclick="setParticipantRescheduled(event)" t-att-data-id="p.id" class="btn btn-warning btn-sm" title="Reschedule">
                                         <i class="fa fa-clock-o"/>
                                     </button>
-                                    <button t-if="p.state === 'not_yet_confirmed'" t-on-click.prevent="setParticipantCancelled" t-att-data-id="p.id" class="btn btn-danger btn-sm" title="Cancel">
+                                    <button t-if="p.state === 'not_yet_confirmed'" onclick="setParticipantCancelled(event)" t-att-data-id="p.id" class="btn btn-danger btn-sm" title="Cancel">
                                         <i class="fa fa-times"/>
                                     </button>
                                 </td>

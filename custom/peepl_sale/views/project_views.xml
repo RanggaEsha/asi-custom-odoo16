@@ -25,61 +25,6 @@
                     </button>
                 </xpath>
 
-                <!-- Add participants tab -->
-                <xpath expr="//notebook" position="inside">
-                    <page name="participants" 
-                          string="Participants" 
-                          attrs="{'invisible': [('is_participant_based', '=', False)]}"
-                          groups="peepl_sale.group_project_participant">
-                        <button name="action_mark_all_participants_completed"
-                                type="object"
-                                string="Mark All Test Completed"
-                                class="btn-success"
-                                attrs="{'invisible': [('participant_count', '=', 0)]}"/>
-                        <field name="participant_ids" context="{'default_project_id': id}">
-                            <tree editable="bottom" 
-                                  decoration-success="state == 'confirmed'" 
-                                  decoration-warning="state == 'rescheduled'"
-                                  decoration-danger="state == 'cancelled'"
-                                  decoration-muted="state == 'not_yet_confirmed'">
-                                <field name="sequence" widget="handle"/>
-                                <field name="first_name"/>
-                                <field name="last_name"/>
-                                <field name="email_address" widget="email"/>
-                                <field name="mobile_phone" widget="phone"/>
-                                <field name="job_title_requiring_assessment"/>
-                                <field name="sale_line_id" readonly="1"/>
-                                <field name="state" widget="badge"
-                                       decoration-success="state == 'confirmed'"
-                                       decoration-warning="state == 'rescheduled'"
-                                       decoration-danger="state == 'cancelled'"
-                                       decoration-info="state == 'not_yet_confirmed'"/>
-                                <field name="completion_date" readonly="1"/>
-                                
-                                <!-- Action buttons -->
-                                <button name="action_set_confirmed" 
-                                        type="object" 
-                                        string="Complete" 
-                                        class="btn-success"
-                                        attrs="{'invisible': [('state', '!=', 'not_yet_confirmed')]}"
-                                        icon="fa-check"/>
-                                <button name="action_set_rescheduled" 
-                                        type="object" 
-                                        string="Reschedule" 
-                                        class="btn-warning"
-                                        attrs="{'invisible': [('state', '!=', 'not_yet_confirmed')]}"
-                                        icon="fa-clock-o"/>
-                                <button name="action_set_cancelled" 
-                                        type="object" 
-                                        string="Cancel" 
-                                        class="btn-danger"
-                                        attrs="{'invisible': [('state', '!=', 'not_yet_confirmed')]}"
-                                        icon="fa-times"/>
-                            </tree>
-                        </field>
-                    </page>
-                </xpath>
-
                 <!-- Add computed fields -->
                 <xpath expr="//field[@name='partner_id']" position="after">
                     <field name="is_participant_based" invisible="1"/>

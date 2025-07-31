@@ -67,7 +67,6 @@ Technical Details:
         'security/ir.model.access.csv',
 
         # Views
-        # 'views/participant_views.xml',
         'views/sale_order_views.xml',
         'views/res_config_settings_views.xml',
         'views/project_views.xml',
@@ -77,6 +76,7 @@ Technical Details:
     ],
     'assets': {
         'web.assets_backend': [
+            'peepl_sale/static/src/components/project_right_side_panel/project_right_side_panel.js',
             'peepl_sale/static/src/components/project_right_side_panel/project_right_side_panel.xml',
         ],
     },
