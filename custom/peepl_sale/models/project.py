@@ -45,21 +45,22 @@ class Project(models.Model):
             )
 
     def action_view_participants(self):
-        """Action to view all participants in this project"""
+        """Action to view all participants in this project (readonly, no form view)"""
         self.ensure_one()
-        
         action = {
             'name': _('Test Participants - %s') % self.name,
             'type': 'ir.actions.act_window',
             'res_model': 'participant',
-            'view_mode': 'tree,form',
+            'view_mode': 'tree',
             'domain': [('project_id', '=', self.id)],
             'context': {
                 'default_project_id': self.id,
                 'default_sale_line_id': self.sale_line_id.id if self.sale_line_id else False,
-                'search_default_not_confirmed': 1,
+                'readonly': True,
+                'no_open': True,
             },
-            'help': _("""
+            'flags': {'readonly': True},
+            'help': _( """
                 <p class="o_view_nocontent_smiling_face">
                     No test participants found. Let's create some!
                 </p><p>
@@ -68,7 +69,6 @@ class Project(models.Model):
                 </p>
             """),
         }
-        
         return action
 
     def action_mark_all_participants_completed(self):

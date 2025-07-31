@@ -110,6 +110,10 @@ class AccountMove(models.Model):
             # Set invoice date to today if not set
             if not self.invoice_date:
                 self.invoice_date = fields.Date.today()
+
+            # Set invoice origin to sale order
+            if not self.invoice_origin:
+                self.invoice_origin = sale_order.name
             
             # Update other sale order related fields (writable fields)
             if sale_order.team_id:

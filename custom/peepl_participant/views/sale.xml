@@ -66,67 +66,6 @@
                     </group>
                 </xpath>
 
-                <!-- Add Participant Data section in notebook
-                <xpath expr="//page[@name='order_lines']" position="after">
-                    <page string="Participant Data" name="participant_data" attrs="{'invisible': [('has_participant_data', '=', False)]}">
-                        <div class="alert alert-info" role="alert">
-                            <strong>Import Data:</strong> You can import participant data from Excel or CSV files. 
-                            Go to CRM → Participants menu and use the Import feature. Required columns: first_name, last_name
-                        </div>
-                        <field name="participant_ids" context="{'default_sale_order_id': active_id}" nolabel="1">
-                            <tree editable="bottom" decoration-muted="active == False">
-                                <field name="sequence" widget="handle"/>
-                                <field name="first_name" required="1"/>
-                                <field name="last_name" required="1"/>
-                                <field name="gender"/>
-                                <field name="email_address"/>
-                                <field name="mobile_phone"/>
-                                <field name="job_title_requiring_assessment"/>
-                                <field name="position_level"/>
-                                <field name="notes"/>
-                                <field name="active" optional="hide"/>
-                            </tree>
-                            <form>
-                                <sheet>
-                                    <div class="oe_button_box" name="button_box">
-                                        <button name="toggle_active" type="object"
-                                                class="oe_stat_button" icon="fa-archive">
-                                            <field name="active" widget="boolean_button"
-                                                options='{"terminology": "archive"}'/>
-                                        </button>
-                                    </div>
-                                    <div class="oe_title">
-                                        <h1>
-                                            <div class="d-flex">
-                                                <field name="first_name" class="text-break me-2" placeholder="First Name"/>
-                                                <field name="last_name" class="text-break" placeholder="Last Name"/>
-                                            </div>
-                                        </h1>
-                                    </div>
-                                    <group>
-                                        <group>
-                                            <field name="gender"/>
-                                            <field name="email_address"/>
-                                            <field name="mobile_phone"/>
-                                        </group>
-                                        <group>
-                                            <field name="job_title_requiring_assessment"/>
-                                            <field name="position_level"/>
-                                            <field name="sequence"/>
-                                        </group>
-                                    </group>
-                                    <group string="Additional Information">
-                                        <field name="notes" placeholder="Additional notes about this participant..."/>
-                                    </group>
-                                </sheet>
-                            </form>
-                        </field>
-                    </page>
-                </xpath> -->
-
-
-
-
             </field>
         </record>
     </data>

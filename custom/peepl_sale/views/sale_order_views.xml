@@ -29,6 +29,10 @@
                     <field name="participant_count" invisible="1"/>
                     <field name="is_product_participant" invisible="1"/>
                 </xpath>
+
+                <xpath expr="//button[@name='action_view_invoice']" position="attributes">
+                    <attribute name="attrs">{'invisible': True}</attribute>
+                </xpath>
             </field>
         </record>
 
