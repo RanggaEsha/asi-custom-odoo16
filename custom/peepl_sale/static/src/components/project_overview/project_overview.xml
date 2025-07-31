@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- Override the main project overview template to hide sales sections -->
+    <t t-name="project_enterprise.ProjectOverview" t-inherit="project_enterprise.ProjectOverview" t-inherit-mode="extension">
+        
+        <!-- Hide Sales Orders section -->
+        <xpath expr="//div[contains(@class, 'o_project_overview_sales') or contains(@class, 'sale_orders') or contains(@t-if, 'sales')]" position="replace">
+            <!-- Remove sales orders section -->
+        </xpath>
+        
+        <!-- Hide Sales section -->
+        <xpath expr="//div[contains(@class, 'o_project_overview_sale') or contains(@t-if, 'sale')]" position="replace">
+            <!-- Remove sales section -->
+        </xpath>
+        
+        <!-- Hide Profitability section -->
+        <xpath expr="//div[contains(@class, 'o_project_overview_profitability') or contains(@t-if, 'profitability')]" position="replace">
+            <!-- Remove profitability section -->
+        </xpath>
+
+    </t>
+
+    <!-- Alternative approach: Create a completely new template if inheritance doesn't work -->
+    <t t-name="peepl_sale.ProjectOverviewCustom" t-inherit="project_enterprise.ProjectOverview" t-inherit-mode="primary">
+        
+        <div class="o_project_overview">
+            <!-- Keep only the sections we want to show -->
+            
+            <!-- Project Info Section (if exists) -->
+            <t t-if="data.project_info">
+                <div class="o_project_overview_info">
+                    <t t-call="project_enterprise.ProjectOverviewInfo"/>
+                </div>
+            </t>
+            
+            <!-- Tasks Section (if exists) -->
+            <t t-if="data.tasks">
+                <div class="o_project_overview_tasks">
+                    <t t-call="project_enterprise.ProjectOverviewTasks"/>
+                </div>
+            </t>
+            
+            <!-- Milestones Section (if exists) -->
+            <t t-if="data.milestones">
+                <div class="o_project_overview_milestones">
+                    <t t-call="project_enterprise.ProjectOverviewMilestones"/>
+                </div>
+            </t>
+            
+            <!-- Any other sections except sales/profitability -->
+            <!-- Add other sections as needed, but exclude sales-related ones -->
+            
+        </div>
+        
+    </t>
+
+</templates>

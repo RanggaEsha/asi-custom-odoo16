@@ -158,3 +158,65 @@ class Project(models.Model):
                 'completion_date', 'email_address', 'mobile_phone'
             ])[:10],  # Limit to first 10 for performance
         }
+    
+    @api.model
+    def get_project_overview_data(self, project_id):
+        """Override to remove sales and profitability data from project overview"""
+        result = super().get_project_overview_data(project_id)
+        
+        # Remove sales-related data from the result
+        if isinstance(result, dict):
+            # Remove sales sections
+            result.pop('sales', None)
+            result.pop('profitability', None)
+            result.pop('sale_orders', None)
+            result.pop('sales_orders', None)
+            
+            # Remove any nested sales data
+            if 'sections' in result:
+                result['sections'] = [
+                    section for section in result['sections'] 
+                    if section.get('name', '').lower() not in ['sales', 'profitability', 'sale_orders']
+                ]
+        
+        return result
+
+    def get_last_update_or_default(self, project_id):
+        """Override to remove sales data from project updates"""
+        result = super().get_last_update_or_default(project_id)
+        
+        if isinstance(result, dict):
+            # Remove sales-related fields from project update data
+            result.pop('sales_data', None)
+            result.pop('profitability_data', None)
+            
+        return result
+
+    @api.model
+    def get_project_dashboard_data(self, project_ids):
+        """Override dashboard data to exclude sales information"""
+        result = super().get_project_dashboard_data(project_ids)
+        
+        if isinstance(result, dict):
+            for project_id, project_data in result.items():
+                if isinstance(project_data, dict):
+                    # Remove sales-related dashboard data
+                    project_data.pop('sales', None)
+                    project_data.pop('profitability', None)
+                    project_data.pop('sale_orders', None)
+                    
+        return result
+
+    def _get_stat_buttons(self):
+        """Override to remove sales-related stat buttons"""
+        result = super()._get_stat_buttons()
+        
+        # Filter out sales-related stat buttons
+        if isinstance(result, list):
+            result = [
+                button for button in result 
+                if not any(keyword in button.get('name', '').lower() 
+                          for keyword in ['sale', 'profit', 'invoice'])
+            ]
+        
+        return result

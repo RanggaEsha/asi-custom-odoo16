@@ -57,7 +57,7 @@ Technical Details:
         'sale_project', 
         'sale_management',
         'base_import',
-        # 'peepl_participant',  # Assuming this is the existing participant module
+        'peepl_participant',  # Assuming this is the existing participant module
         # 'peepl_crm',  # Assuming this is the existing CRM module
         'crm',
     ],
@@ -65,11 +65,7 @@ Technical Details:
         # Security
         'security/groups.xml',
         'security/ir.model.access.csv',
-        
-        # Data
-        # 'data/sequences.xml',
-        # 'data/demo_data.xml',
-        
+
         # Views
         # 'views/participant_views.xml',
         'views/sale_order_views.xml',
@@ -81,7 +77,9 @@ Technical Details:
     ],
     'assets': {
         'web.assets_backend': [
-            'peepl_sale/static/src/css/custom_ribbon.css',
+            'peepl_sale/static/src/components/**/*.js',
+            'peepl_sale/static/src/components/**/*.xml',
+            'peepl_sale/static/src/scss/**/*.scss',
         ],
     },
     'demo': [],
