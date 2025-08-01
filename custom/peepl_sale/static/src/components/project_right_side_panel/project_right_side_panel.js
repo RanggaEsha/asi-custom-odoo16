@@ -276,6 +276,8 @@ window.submitChanges = async function() {
                             actionMethod = 'action_set_rescheduled';
                         } else if (change.newState === 'cancelled') {
                             actionMethod = 'action_set_cancelled';
+                        } else if (change.newState === 'not_yet_confirmed') {
+                            actionMethod = 'action_set_not_yet_confirmed';
                         }
                         
                         if (actionMethod) {

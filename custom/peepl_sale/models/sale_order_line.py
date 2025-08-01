@@ -79,6 +79,8 @@ class SaleOrderLine(models.Model):
         participant_lines.qty_delivered_method = 'participants'
         super(SaleOrderLine, self - participant_lines)._compute_qty_delivered_method()
 
+    # Add this improved method to your sale_order_line.py file
+
     @api.depends('qty_delivered_method', 'product_uom_qty', 'related_participants_ids.state', 'all_order_participants_ids.state', 'auto_link_participants')
     def _compute_qty_delivered(self):
         """Override to compute delivered quantity based on participants"""
@@ -89,14 +91,41 @@ class SaleOrderLine(models.Model):
             return
 
         for line in lines_by_participants:
-            if line.auto_link_participants and not line.related_participants_ids:
-                # Use all order participants
-                completed_count = len(line.all_order_participants_ids.filtered(lambda p: p.state == 'confirmed'))
-            else:
-                # Use specifically linked participants
-                completed_count = len(line.related_participants_ids.filtered(lambda p: p.state == 'confirmed'))
-            # For participants, we deliver the exact number of completed participants
-            line.qty_delivered = completed_count
+            try:
+                if line.auto_link_participants and not line.related_participants_ids:
+                    # Use all order participants
+                    all_participants = line.all_order_participants_ids
+                    completed_participants = all_participants.filtered(lambda p: p.state == 'confirmed')
+                    completed_count = len(completed_participants)
+                else:
+                    # Use specifically linked participants
+                    linked_participants = line.related_participants_ids
+                    completed_participants = linked_participants.filtered(lambda p: p.state == 'confirmed')
+                    completed_count = len(completed_participants)
+                
+                # Update qty_delivered
+                line.qty_delivered = completed_count
+                
+                _logger = logging.getLogger(__name__)
+                _logger.info(f"Line {line.id}: Updated qty_delivered to {completed_count}")
+                
+            except Exception as e:
+                import logging
+                _logger = logging.getLogger(__name__)
+                _logger.error(f"Error computing qty_delivered for line {line.id}: {e}")
+                line.qty_delivered = 0
+
+    def force_qty_delivered_recompute(self):
+        """Force recomputation of qty_delivered for participant-based lines"""
+        participant_lines = self.filtered(lambda sol: sol.qty_delivered_method == 'participants')
+        if participant_lines:
+            # Clear cache and recompute
+            participant_lines.invalidate_cache(['qty_delivered'])
+            participant_lines._compute_qty_delivered()
+            # Ensure changes are persisted
+            participant_lines.flush(['qty_delivered'])
+            return True
+        return False
 
     def _link_order_participants_to_line(self):
         """Link existing order participants to this sale order line"""
