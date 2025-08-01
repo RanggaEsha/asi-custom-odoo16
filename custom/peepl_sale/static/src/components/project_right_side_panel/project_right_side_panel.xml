@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <templates xml:space="preserve">
-    <!-- SIMPLE DEBUG VERSION: Basic debugging without complex JS -->
     <t t-name="project.ProjectRightSidePanel" owl="1">
         <div t-if="projectId" class="o_rightpanel pt-0 bg-view border-start overflow-auto">
             
@@ -37,7 +36,7 @@
                 </div>
             </ProjectRightSidePanelSection>
             
-            <!-- Participants section - Fixed condition -->
+            <!-- Participants section with error handling -->
             <ProjectRightSidePanelSection
                 name="'participants'"
                 show="!!(state &amp;&amp; state.data &amp;&amp; state.data.participants &amp;&amp; state.data.participants.total &gt; 0)"
@@ -47,57 +46,121 @@
                 </t>
                 
                 <t t-if="state &amp;&amp; state.data &amp;&amp; state.data.participants &amp;&amp; state.data.participants.data">
-                    <button
-                        t-if="state.data.participants.pending &gt; 0"
-                        onclick="markAllParticipantsCompleted(event)"
-                        t-att-data-project-id="projectId"
-                        class="btn btn-success mb-2 w-100"
-                    >
-                        Mark All Test Completed
-                    </button>
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Mobile</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr t-foreach="state.data.participants.data" t-as="p" t-key="p.id">
-                                <td><t t-esc="p.first_name"/> <t t-esc="p.last_name"/></td>
-                                <td><t t-esc="p.email_address"/></td>
-                                <td><t t-esc="p.mobile_phone"/></td>
-                                <td><t t-esc="p.state"/></td>
-                                <td>
-                                    <div t-if="p.state === 'not_yet_confirmed'">
-                                        <button onclick="setParticipantConfirmed(event)" t-att-data-id="p.id" class="btn btn-success btn-sm" title="Complete">
-                                            <i class="fa fa-check"/>
-                                        </button>
-                                        <button onclick="setParticipantRescheduled(event)" t-att-data-id="p.id" class="btn btn-warning btn-sm" title="Reschedule">
-                                            <i class="fa fa-clock-o"/>
-                                        </button>
-                                        <button onclick="setParticipantCancelled(event)" t-att-data-id="p.id" class="btn btn-danger btn-sm" title="Cancel">
-                                            <i class="fa fa-times"/>
-                                        </button>
-                                    </div>
-                                    <div t-if="p.state !== 'not_yet_confirmed'" class="d-flex align-items-center" style="gap: 8px;">
-                                        <span t-if="p.state === 'confirmed'" class="badge badge-success">✅ Completed</span>
-                                        <span t-if="p.state === 'rescheduled'" class="badge badge-warning">⟳ Rescheduled</span>
-                                        <span t-if="p.state === 'cancelled'" class="badge badge-danger">❌ Cancelled</span>
-                                        <button onclick="setParticipantReset(event)" t-att-data-id="p.id" class="btn btn-info btn-sm" title="Reset to Pending">
-                                            <i class="fa fa-undo"/>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="participant-actions-container mb-3">
+                        <button
+                            t-if="state.data.participants.pending &gt; 0"
+                            onclick="typeof markAllParticipantsCompleted === 'function' &amp;&amp; markAllParticipantsCompleted(event)"
+                            t-att-data-project-id="projectId"
+                            class="btn btn-success mb-2 w-100"
+                            type="button"
+                        >
+                            <i class="fa fa-check-circle me-2"></i>
+                            Mark All Test Completed
+                        </button>
+                        
+                        <!-- Participants count info -->
+                        <div class="text-muted small mb-2">
+                            <i class="fa fa-info-circle me-1"></i>
+                            <span t-esc="state.data.participants.completed || 0"/> completed, 
+                            <span t-esc="state.data.participants.pending || 0"/> pending
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Mobile</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="state.data.participants.data" t-as="p" t-key="p.id" class="participant-row">
+                                    <td>
+                                        <strong t-esc="p.first_name"/> <t t-esc="p.last_name"/>
+                                    </td>
+                                    <td>
+                                        <small t-esc="p.email_address"/>
+                                    </td>
+                                    <td>
+                                        <small t-esc="p.mobile_phone"/>
+                                    </td>
+                                    <td>
+                                        <span t-esc="p.state"/>
+                                    </td>
+                                    <td>
+                                        <!-- Pending participants actions -->
+                                        <div t-if="p.state === 'not_yet_confirmed'" class="btn-group btn-group-sm" role="group">
+                                            <button 
+                                                onclick="typeof setParticipantConfirmed === 'function' &amp;&amp; setParticipantConfirmed(event)" 
+                                                t-att-data-id="p.id" 
+                                                class="btn btn-success btn-sm" 
+                                                title="Complete"
+                                                type="button"
+                                            >
+                                                <i class="fa fa-check"/>
+                                            </button>
+                                            <button 
+                                                onclick="typeof setParticipantRescheduled === 'function' &amp;&amp; setParticipantRescheduled(event)" 
+                                                t-att-data-id="p.id" 
+                                                class="btn btn-warning btn-sm" 
+                                                title="Reschedule"
+                                                type="button"
+                                            >
+                                                <i class="fa fa-clock-o"/>
+                                            </button>
+                                            <button 
+                                                onclick="typeof setParticipantCancelled === 'function' &amp;&amp; setParticipantCancelled(event)" 
+                                                t-att-data-id="p.id" 
+                                                class="btn btn-danger btn-sm" 
+                                                title="Cancel"
+                                                type="button"
+                                            >
+                                                <i class="fa fa-times"/>
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- Completed/Cancelled/Rescheduled participants -->
+                                        <div t-if="p.state !== 'not_yet_confirmed'" class="d-flex align-items-center justify-content-between">
+                                            <div>
+                                                <span t-if="p.state === 'confirmed'" class="badge bg-success">
+                                                    <i class="fa fa-check me-1"></i>Completed
+                                                </span>
+                                                <span t-if="p.state === 'rescheduled'" class="badge bg-warning text-dark">
+                                                    <i class="fa fa-clock-o me-1"></i>Rescheduled
+                                                </span>
+                                                <span t-if="p.state === 'cancelled'" class="badge bg-danger">
+                                                    <i class="fa fa-times me-1"></i>Cancelled
+                                                </span>
+                                            </div>
+                                            <button 
+                                                onclick="typeof setParticipantReset === 'function' &amp;&amp; setParticipantReset(event)" 
+                                                t-att-data-id="p.id" 
+                                                class="btn btn-info btn-sm ms-2" 
+                                                title="Reset to Pending"
+                                                type="button"
+                                            >
+                                                <i class="fa fa-undo"/>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Empty state -->
+                    <div t-if="!state.data.participants.data.length" class="text-center text-muted py-4">
+                        <i class="fa fa-users fa-2x mb-2 d-block"></i>
+                        <p>No participants found</p>
+                    </div>
                 </t>
             </ProjectRightSidePanelSection>
             
+            <!-- Milestones section -->
             <ProjectRightSidePanelSection
                 name="'milestones'"
                 show="!!(state &amp;&amp; state.data &amp;&amp; state.data.milestones &amp;&amp; state.data.milestones.data)"

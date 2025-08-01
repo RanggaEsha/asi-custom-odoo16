@@ -246,3 +246,50 @@ class SaleOrder(models.Model):
                 self.env['participant'].browse(ids).write({'sale_order_id': order.id})
         
         return order
+    
+    def action_confirm(self):
+        """Override to ensure participants are properly linked after confirmation"""
+        result = super().action_confirm()
+        
+        # **FIX: After confirmation, ensure all participants are properly linked to projects**
+        self._link_participants_to_projects()
+        
+        return result
+
+    def _link_participants_to_projects(self):
+        """Ensure all participants in this sale order are linked to appropriate projects"""
+        for order in self:
+            # Process participant-based lines
+            participant_lines = order.order_line.filtered(
+                lambda line: line.qty_delivered_method == 'participants'
+            )
+            
+            for line in participant_lines:
+                # Get participants for this line
+                participants = line.related_participants_ids
+                if line.auto_link_participants and not participants:
+                    participants = order.participant_ids
+                
+                if participants:
+                    # Find the appropriate project for this line
+                    project = None
+                    
+                    if hasattr(line, 'project_id') and line.project_id:
+                        project = line.project_id
+                    elif hasattr(line, 'task_id') and line.task_id and line.task_id.project_id:
+                        project = line.task_id.project_id
+                    elif order.project_ids:
+                        # Use the most recent project
+                        project = order.project_ids.sorted('create_date', reverse=True)[0]
+                    
+                    if project:
+                        # Update participants with project link
+                        participants_to_update = participants.filtered(lambda p: not p.project_id)
+                        if participants_to_update:
+                            participants_to_update.write({'project_id': project.id})
+                            
+                        # Also ensure they're linked to the sale line if auto-link is enabled
+                        if line.auto_link_participants:
+                            unlinked_participants = participants.filtered(lambda p: not p.sale_line_id)
+                            if unlinked_participants:
+                                unlinked_participants.write({'sale_line_id': line.id})

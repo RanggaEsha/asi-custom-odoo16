@@ -56,14 +56,26 @@ class Participant(models.Model):
         for participant in self:
             participant.full_name = f"{participant.first_name or ''} {participant.last_name or ''}".strip()
 
-    @api.depends('sale_line_id', 'sale_order_id')
+    @api.depends('sale_line_id', 'sale_line_id.project_id', 'sale_order_id', 'sale_order_id.project_ids')
     def _compute_project_id(self):
         for participant in self:
             project = False
-            if participant.sale_line_id and hasattr(participant.sale_line_id, 'project_id'):
-                project = participant.sale_line_id.project_id
-            elif participant.sale_order_id and hasattr(participant.sale_order_id, 'project_id'):
-                project = participant.sale_order_id.project_id
+            
+            # First try to get project from sale order line
+            if participant.sale_line_id:
+                if hasattr(participant.sale_line_id, 'project_id') and participant.sale_line_id.project_id:
+                    project = participant.sale_line_id.project_id
+                elif hasattr(participant.sale_line_id, 'task_id') and participant.sale_line_id.task_id and participant.sale_line_id.task_id.project_id:
+                    project = participant.sale_line_id.task_id.project_id
+            
+            # Fallback to sale order project
+            if not project and participant.sale_order_id:
+                if hasattr(participant.sale_order_id, 'project_ids') and participant.sale_order_id.project_ids:
+                    # Get the most recent project
+                    project = participant.sale_order_id.project_ids.sorted('create_date', reverse=True)[0]
+                elif hasattr(participant.sale_order_id, 'project_id') and participant.sale_order_id.project_id:
+                    project = participant.sale_order_id.project_id
+            
             participant.project_id = project
 
     @api.depends('sale_line_id', 'sale_line_id.price_unit')
@@ -81,26 +93,36 @@ class Participant(models.Model):
             else:
                 participant.unit_price = 0.0
 
+    # Replace your existing write method in the Participant model with this enhanced version
 
     def write(self, vals):
         """Allow only state changes if SO is confirmed; block all other edits."""
         allowed_keys = {'state', 'completion_date', 'notes','sale_line_id', 'project_id', 'lead_id', 'sale_order_id'}
+        
+        # Store sale lines that will need quantity updates
+        affected_sale_lines = set()
+        
         for participant in self:
             if participant.sale_order_id and participant.sale_order_id.state == 'sale':
                 if set(vals.keys()) - allowed_keys:
                     raise ValidationError(_(
                         'Cannot modify participant data when the sale order is confirmed.'
                     ))
+            
+            # Collect sale lines that will be affected by state changes
+            if 'state' in vals and participant.sale_line_id and participant.sale_line_id.qty_delivered_method == 'participants':
+                affected_sale_lines.add(participant.sale_line_id.id)
 
         result = super().write(vals)
 
-        # Update sale order line delivered quantity when state changes to confirmed
-        if 'state' in vals and vals['state'] == 'confirmed':
-            sale_lines = self.mapped('sale_line_id').filtered(
-                lambda sol: sol.qty_delivered_method == 'participants'
-            )
-            if sale_lines:
-                sale_lines._compute_qty_delivered()
+        # **ENHANCED: Force quantity delivery update for affected sale lines**
+        if 'state' in vals and affected_sale_lines:
+            lines_to_update = self.env['sale.order.line'].browse(list(affected_sale_lines))
+            lines_to_update._compute_qty_delivered()
+
+        # **FIX: Recompute project_id when sale_line_id changes**
+        if 'sale_line_id' in vals:
+            self._compute_project_id()
 
         # Post message on related sale order when state changes
         if 'state' in vals:
@@ -109,8 +131,8 @@ class Participant(models.Model):
                     old_state = self._get_state_display(vals.get('state'))
                     message = _('Participant %s state changed to %s.') % (participant.full_name, old_state)
                     participant.sale_order_id.message_post(body=message)
+                    
         return result
-
 
     def unlink(self):
         # Allow deletion only if not linked to confirmed sale order, or if only state is being changed
@@ -123,7 +145,6 @@ class Participant(models.Model):
                     'Cannot delete participants linked to confirmed sale orders.'
                 ))
         return super().unlink()
-
 
     def _get_state_display(self, state_key):
         """Get display value for state"""
@@ -207,3 +228,174 @@ class Participant(models.Model):
             'mobile_phone', 'job_title_requiring_assessment', 'position_level',
             'state', 'completion_date', 'unit_price', 'notes'
         ]
+    
+
+    # Ultra-simple approach - replace your RPC methods with these
+
+    @api.model
+    def rpc_set_confirmed(self, participant_ids):
+        """RPC-friendly method to set participants as confirmed"""
+        try:
+            participants = self.browse(participant_ids)
+            
+            for participant in participants:
+                # Update participant state
+                participant.write({
+                    'state': 'confirmed',
+                    'completion_date': fields.Date.today()
+                })
+                
+                # IMMEDIATELY update sale line qty_delivered if linked
+                if participant.sale_line_id and participant.sale_line_id.qty_delivered_method == 'participants':
+                    line = participant.sale_line_id
+                    
+                    # Get participants for this line
+                    if line.auto_link_participants and not line.related_participants_ids:
+                        line_participants = line.all_order_participants_ids
+                    else:
+                        line_participants = line.related_participants_ids
+                    
+                    # Count completed participants
+                    completed_count = len(line_participants.filtered(lambda p: p.state == 'confirmed'))
+                    
+                    # Direct SQL update to bypass all ORM complications
+                    self.env.cr.execute(
+                        "UPDATE sale_order_line SET qty_delivered = %s WHERE id = %s",
+                        (completed_count, line.id)
+                    )
+                    
+                    # Force commit
+                    self.env.cr.commit()
+                    
+            return {'success': True, 'count': len(participants)}
+        except Exception as e:
+            import logging
+            _logger = logging.getLogger(__name__)
+            _logger.error(f"Error in rpc_set_confirmed: {e}")
+            return {'success': False, 'error': str(e)}
+
+    @api.model  
+    def rpc_set_rescheduled(self, participant_ids):
+        """RPC-friendly method to set participants as rescheduled"""
+        try:
+            participants = self.browse(participant_ids)
+            
+            for participant in participants:
+                # Update participant state
+                participant.write({
+                    'state': 'rescheduled',
+                    'completion_date': False
+                })
+                
+                # IMMEDIATELY update sale line qty_delivered if linked
+                if participant.sale_line_id and participant.sale_line_id.qty_delivered_method == 'participants':
+                    line = participant.sale_line_id
+                    
+                    # Get participants for this line
+                    if line.auto_link_participants and not line.related_participants_ids:
+                        line_participants = line.all_order_participants_ids
+                    else:
+                        line_participants = line.related_participants_ids
+                    
+                    # Count completed participants
+                    completed_count = len(line_participants.filtered(lambda p: p.state == 'confirmed'))
+                    
+                    # Direct SQL update
+                    self.env.cr.execute(
+                        "UPDATE sale_order_line SET qty_delivered = %s WHERE id = %s",
+                        (completed_count, line.id)
+                    )
+                    
+                    # Force commit
+                    self.env.cr.commit()
+                    
+            return {'success': True, 'count': len(participants)}
+        except Exception as e:
+            import logging
+            _logger = logging.getLogger(__name__)
+            _logger.error(f"Error in rpc_set_rescheduled: {e}")
+            return {'success': False, 'error': str(e)}
+
+    @api.model
+    def rpc_set_cancelled(self, participant_ids):
+        """RPC-friendly method to set participants as cancelled"""
+        try:
+            participants = self.browse(participant_ids)
+            
+            for participant in participants:
+                # Update participant state
+                participant.write({
+                    'state': 'cancelled', 
+                    'completion_date': False
+                })
+                
+                # IMMEDIATELY update sale line qty_delivered if linked
+                if participant.sale_line_id and participant.sale_line_id.qty_delivered_method == 'participants':
+                    line = participant.sale_line_id
+                    
+                    # Get participants for this line
+                    if line.auto_link_participants and not line.related_participants_ids:
+                        line_participants = line.all_order_participants_ids
+                    else:
+                        line_participants = line.related_participants_ids
+                    
+                    # Count completed participants
+                    completed_count = len(line_participants.filtered(lambda p: p.state == 'confirmed'))
+                    
+                    # Direct SQL update
+                    self.env.cr.execute(
+                        "UPDATE sale_order_line SET qty_delivered = %s WHERE id = %s",
+                        (completed_count, line.id)
+                    )
+                    
+                    # Force commit
+                    self.env.cr.commit()
+                    
+            return {'success': True, 'count': len(participants)}
+        except Exception as e:
+            import logging
+            _logger = logging.getLogger(__name__)
+            _logger.error(f"Error in rpc_set_cancelled: {e}")
+            return {'success': False, 'error': str(e)}
+
+    @api.model
+    def rpc_set_pending(self, participant_ids):
+        """RPC-friendly method to reset participants to pending"""
+        try:
+            participants = self.browse(participant_ids)
+            
+            for participant in participants:
+                # Update participant state
+                participant.write({
+                    'state': 'not_yet_confirmed',
+                    'completion_date': False
+                })
+                
+                # IMMEDIATELY update sale line qty_delivered if linked
+                if participant.sale_line_id and participant.sale_line_id.qty_delivered_method == 'participants':
+                    line = participant.sale_line_id
+                    
+                    # Get participants for this line
+                    if line.auto_link_participants and not line.related_participants_ids:
+                        line_participants = line.all_order_participants_ids
+                    else:
+                        line_participants = line.related_participants_ids
+                    
+                    # Count completed participants
+                    completed_count = len(line_participants.filtered(lambda p: p.state == 'confirmed'))
+                    
+                    # Direct SQL update
+                    self.env.cr.execute(
+                        "UPDATE sale_order_line SET qty_delivered = %s WHERE id = %s",
+                        (completed_count, line.id)
+                    )
+                    
+                    # Force commit
+                    self.env.cr.commit()
+                    
+            return {'success': True, 'count': len(participants)}
+        except Exception as e:
+            import logging
+            _logger = logging.getLogger(__name__)
+            _logger.error(f"Error in rpc_set_pending: {e}")
+            return {'success': False, 'error': str(e)}

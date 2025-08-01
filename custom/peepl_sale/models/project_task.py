@@ -20,13 +20,13 @@ class ProjectTask(models.Model):
         store=False
     )
 
+    def _compute_has_project_participants(self):
+        for task in self:
+            task.has_project_participants = bool(task.project_id and task.project_id.participant_ids)
+
     def _compute_project_participant_ids(self):
         for task in self:
-            if task.project_id and task.project_id.is_participant_based:
+            if task.project_id and task.project_id.participant_ids:
                 task.project_participant_ids = task.project_id.participant_ids
             else:
                 task.project_participant_ids = False
-
-    def _compute_has_project_participants(self):
-        for task in self:
-            task.has_project_participants = bool(task.project_id and task.project_id.is_participant_based)

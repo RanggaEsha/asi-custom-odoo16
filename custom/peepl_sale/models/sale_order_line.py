@@ -137,12 +137,52 @@ class SaleOrderLine(models.Model):
         """Override to handle participant generation after project/task creation"""
         result = super()._timesheet_service_generation()
         
-        # Handle participant linking/generation for participant-based lines
+        # **FIX: Handle participant linking/generation for participant-based lines AFTER project creation**
         for line in self.filtered(lambda sol: sol.product_id.service_policy == 'delivered_participants'):
             if line.auto_link_participants:
                 line._link_order_participants_to_line()
             else:
                 line._generate_participants_from_quantity()
+                
+            # **FIX: Force recompute project_id on participants after linking**
+            line._update_participants_project_link()
+        
+        return result
+
+    def _update_participants_project_link(self):
+        """Force update project link on participants after project/task creation"""
+        self.ensure_one()
+        
+        # Get all participants linked to this line
+        participants = self.related_participants_ids
+        if self.auto_link_participants and not participants:
+            participants = self.all_order_participants_ids
+        
+        if participants:
+            # Force recompute project_id field
+            participants._compute_project_id()
+            
+            # **Alternative approach: If computed field doesn't work, set directly**
+            project = False
+            if hasattr(self, 'project_id') and self.project_id:
+                project = self.project_id
+            elif hasattr(self, 'task_id') and self.task_id and self.task_id.project_id:
+                project = self.task_id.project_id
+            elif self.order_id and hasattr(self.order_id, 'project_ids') and self.order_id.project_ids:
+                project = self.order_id.project_ids.sorted('create_date', reverse=True)[0]
+            
+            if project:
+                # Direct assignment as fallback
+                participants.write({'project_id': project.id})
+
+    def write(self, vals):
+        """Override to update participants when project is assigned"""
+        result = super().write(vals)
+        
+        # **FIX: When project_id or task_id is assigned, update participants**
+        if any(field in vals for field in ['project_id', 'task_id']):
+            for line in self.filtered(lambda sol: sol.qty_delivered_method == 'participants'):
+                line._update_participants_project_link()
         
         return result
 
@@ -192,6 +232,8 @@ class SaleOrderLine(models.Model):
         self.ensure_one()
         if self.all_order_participants_ids:
             self.all_order_participants_ids.write({'sale_line_id': self.id})
+            # Update project links
+            self._update_participants_project_link()
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',
