@@ -4,6 +4,12 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import rpc from 'web.rpc';
 
+// Pending changes tracker
+let pendingChanges = {
+    participants: new Map(), // participantId -> {originalState, newState, element}
+    hasChanges: false
+};
+
 // Simple global functions approach
 window.setParticipantConfirmed = async function(ev) {
     ev.preventDefault();
@@ -11,23 +17,10 @@ window.setParticipantConfirmed = async function(ev) {
     const participantId = parseInt(button.dataset.id);
     const participantRow = button.closest('tr');
     
-    // Add loading state
-    setButtonLoading(button, true);
-    
-    try {
-        const result = await rpc.query({
-            model: 'participant',
-            method: 'action_set_confirmed',
-            args: [participantId],
-        });
-        
-        handleParticipantActionResult(result, participantRow, 'confirmed');
-    } catch (error) {
-        console.error('Error setting participant confirmed:', error);
-        showNotification('Error updating participant status', 'danger');
-    } finally {
-        setButtonLoading(button, false);
-    }
+    // Add to pending changes instead of immediate backend call
+    addPendingChange(participantId, participantRow, 'confirmed');
+    updateParticipantUI(participantRow, 'confirmed');
+    showSubmitCancelButtons();
 };
 
 window.setParticipantRescheduled = async function(ev) {
@@ -36,23 +29,10 @@ window.setParticipantRescheduled = async function(ev) {
     const participantId = parseInt(button.dataset.id);
     const participantRow = button.closest('tr');
     
-    // Add loading state
-    setButtonLoading(button, true);
-    
-    try {
-        const result = await rpc.query({
-            model: 'participant',
-            method: 'action_set_rescheduled',
-            args: [participantId],
-        });
-        
-        handleParticipantActionResult(result, participantRow, 'rescheduled');
-    } catch (error) {
-        console.error('Error setting participant rescheduled:', error);
-        showNotification('Error updating participant status', 'danger');
-    } finally {
-        setButtonLoading(button, false);
-    }
+    // Add to pending changes instead of immediate backend call
+    addPendingChange(participantId, participantRow, 'rescheduled');
+    updateParticipantUI(participantRow, 'rescheduled');
+    showSubmitCancelButtons();
 };
 
 window.setParticipantCancelled = async function(ev) {
@@ -61,79 +41,308 @@ window.setParticipantCancelled = async function(ev) {
     const participantId = parseInt(button.dataset.id);
     const participantRow = button.closest('tr');
     
-    // Add loading state
-    setButtonLoading(button, true);
+    // Add to pending changes instead of immediate backend call
+    addPendingChange(participantId, participantRow, 'cancelled');
+    updateParticipantUI(participantRow, 'cancelled');
+    showSubmitCancelButtons();
+};
+
+window.setParticipantReset = async function(ev) {
+    ev.preventDefault();
+    const button = ev.currentTarget;
+    const participantId = parseInt(button.dataset.id);
+    const participantRow = button.closest('tr');
     
-    try {
-        const result = await rpc.query({
-            model: 'participant',
-            method: 'action_set_cancelled',
-            args: [participantId],
-        });
-        
-        handleParticipantActionResult(result, participantRow, 'cancelled');
-    } catch (error) {
-        console.error('Error setting participant cancelled:', error);
-        showNotification('Error updating participant status', 'danger');
-    } finally {
-        setButtonLoading(button, false);
-    }
+    // Add to pending changes instead of immediate backend call
+    addPendingChange(participantId, participantRow, 'not_yet_confirmed');
+    updateParticipantUI(participantRow, 'not_yet_confirmed');
+    showSubmitCancelButtons();
 };
 
 window.markAllParticipantsCompleted = async function(ev) {
     ev.preventDefault();
     const button = ev.currentTarget;
-    const projectId = getProjectIdFromURL() || button.dataset.projectId;
     
-    if (!projectId) {
-        showNotification('Project ID not found', 'danger');
-        return;
-    }
-    
-    // Add loading state
-    setButtonLoading(button, true);
-    
-    try {
-        const result = await rpc.query({
-            model: 'project.project',
-            method: 'action_mark_all_participants_completed',
-            args: [parseInt(projectId)],
-        });
-        
-        // For mark all, update all pending participants
-        markAllParticipantsAsCompleted();
-        handleParticipantActionResult(result, null, null);
-    } catch (error) {
-        console.error('Error marking all participants completed:', error);
-        showNotification('Error updating participants', 'danger');
-    } finally {
-        setButtonLoading(button, false);
-    }
-};
-
-function markAllParticipantsAsCompleted() {
-    // Find all rows with pending participants and update them
+    // Find all pending participants and add them to pending changes
     const participantRows = document.querySelectorAll('table tbody tr');
+    let changedCount = 0;
+    
     participantRows.forEach(row => {
         const stateCell = row.querySelector('td:nth-child(4)');
         if (stateCell && stateCell.textContent.trim() === 'not_yet_confirmed') {
-            updateParticipantUI(row, 'confirmed');
-        }
-    });
-    updateParticipantCounters();
-}
-
-function handleParticipantActionResult(result, participantElement = null, newState = null) {
-    if (result && Array.isArray(result)) {
-        for (const action of result) {
-            if (action.type === 'ir.actions.client' && action.tag === 'display_notification') {
-                showNotification(action.params.message, action.params.type, action.params.title);
-            } else if (action.type === 'ir.actions.client' && action.tag === 'reload') {
-                // Instead of reloading, just update the UI seamlessly
-                updateParticipantUI(participantElement, newState);
-                updateParticipantCounters();
+            const participantId = getParticipantIdFromRow(row);
+            if (participantId) {
+                addPendingChange(participantId, row, 'confirmed');
+                updateParticipantUI(row, 'confirmed');
+                changedCount++;
             }
         }
+    });
+    
+    if (changedCount > 0) {
+        updateParticipantCounters();
+        showSubmitCancelButtons();
+        showNotification(`${changedCount} participants marked as completed. Click Submit to save changes.`, 'info', 'Pending Changes');
+    }
+};
+
+// New functions for the confirmation flow
+window.submitChanges = async function() {
+    const submitButton = document.getElementById('submit-changes-btn');
+    const cancelButton = document.getElementById('cancel-changes-btn');
+    
+    if (!pendingChanges.hasChanges) return;
+    
+    // Show loading state
+    setButtonLoading(submitButton, true);
+    setButtonLoading(cancelButton, true);
+    
+    try {
+        let successCount = 0;
+        let errorCount = 0;
+        
+        // Process all pending changes
+        for (const [participantId, change] of pendingChanges.participants) {
+            try {
+                let result;
+                
+                if (change.newState === 'confirmed') {
+                    result = await rpc.query({
+                        model: 'participant',
+                        method: 'action_set_confirmed',
+                        args: [participantId],
+                    });
+                } else if (change.newState === 'rescheduled') {
+                    result = await rpc.query({
+                        model: 'participant',
+                        method: 'action_set_rescheduled',
+                        args: [participantId],
+                    });
+                } else if (change.newState === 'cancelled') {
+                    result = await rpc.query({
+                        model: 'participant',
+                        method: 'action_set_cancelled',
+                        args: [participantId],
+                    });
+                } else if (change.newState === 'not_yet_confirmed') {
+                    // For reset, we need to update the participant state back to not_yet_confirmed
+                    result = await rpc.query({
+                        model: 'participant',
+                        method: 'write',
+                        args: [participantId, {
+                            'state': 'not_yet_confirmed',
+                            'completion_date': false
+                        }],
+                    });
+                }
+                
+                successCount++;
+            } catch (error) {
+                console.error(`Error updating participant ${participantId}:`, error);
+                errorCount++;
+            }
+        }
+        
+        // Clear pending changes
+        clearPendingChanges();
+        hideSubmitCancelButtons();
+        
+        // Show result notification
+        if (errorCount === 0) {
+            showNotification(`Successfully updated ${successCount} participants!`, 'success', 'Changes Saved');
+        } else {
+            showNotification(`Updated ${successCount} participants, ${errorCount} failed.`, 'warning', 'Partial Success');
+        }
+        
+    } catch (error) {
+        console.error('Error submitting changes:', error);
+        showNotification('Error saving changes. Please try again.', 'danger', 'Save Failed');
+    } finally {
+        setButtonLoading(submitButton, false);
+        setButtonLoading(cancelButton, false);
+    }
+};
+
+window.cancelChanges = function() {
+    // Revert all UI changes
+    for (const [participantId, change] of pendingChanges.participants) {
+        revertParticipantUI(change.element, change.originalState);
+    }
+    
+    // Clear pending changes and hide buttons
+    clearPendingChanges();
+    hideSubmitCancelButtons();
+    updateParticipantCounters();
+    
+    showNotification('All changes have been cancelled.', 'info', 'Changes Cancelled');
+};
+
+// Helper functions for pending changes management
+function addPendingChange(participantId, element, newState) {
+    // Store original state if not already stored
+    if (!pendingChanges.participants.has(participantId)) {
+        const originalState = getOriginalParticipantState(element);
+        pendingChanges.participants.set(participantId, {
+            originalState: originalState,
+            newState: newState,
+            element: element
+        });
+    } else {
+        // Update the new state but keep original state
+        const existing = pendingChanges.participants.get(participantId);
+        existing.newState = newState;
+    }
+    
+    pendingChanges.hasChanges = true;
+}
+
+function getOriginalParticipantState(element) {
+    const stateCell = element.querySelector('td:nth-child(4)');
+    return stateCell ? stateCell.textContent.trim() : 'not_yet_confirmed';
+}
+
+function getParticipantIdFromRow(row) {
+    // Try to get participant ID from action buttons
+    const buttons = row.querySelectorAll('button[data-id]');
+    if (buttons.length > 0) {
+        return parseInt(buttons[0].dataset.id);
+    }
+    return null;
+}
+
+function clearPendingChanges() {
+    pendingChanges.participants.clear();
+    pendingChanges.hasChanges = false;
+}
+
+function revertParticipantUI(element, originalState) {
+    // Revert state column
+    const stateCell = element.querySelector('td:nth-child(4)');
+    if (stateCell) {
+        stateCell.textContent = originalState;
+    }
+    
+    // Revert actions column - restore appropriate buttons based on original state
+    const actionsCell = element.querySelector('td:nth-child(5)');
+    const participantId = getParticipantIdFromRow(element);
+    
+    if (actionsCell && participantId) {
+        if (originalState === 'not_yet_confirmed') {
+            // Show the action buttons for pending participants
+            actionsCell.innerHTML = `
+                <button onclick="setParticipantConfirmed(event)" data-id="${participantId}" class="btn btn-success btn-sm" title="Complete">
+                    <i class="fa fa-check"></i>
+                </button>
+                <button onclick="setParticipantRescheduled(event)" data-id="${participantId}" class="btn btn-warning btn-sm" title="Reschedule">
+                    <i class="fa fa-clock-o"></i>
+                </button>
+                <button onclick="setParticipantCancelled(event)" data-id="${participantId}" class="btn btn-danger btn-sm" title="Cancel">
+                    <i class="fa fa-times"></i>
+                </button>
+            `;
+        } else {
+            // Show reset button for completed/cancelled/rescheduled participants
+            const stateBadges = {
+                'confirmed': '<span class="badge badge-success">✅ Completed</span>',
+                'rescheduled': '<span class="badge badge-warning">⟳ Rescheduled</span>',
+                'cancelled': '<span class="badge badge-danger">❌ Cancelled</span>'
+            };
+            actionsCell.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    ${stateBadges[originalState] || ''}
+                    <button onclick="setParticipantReset(event)" data-id="${participantId}" class="btn btn-info btn-sm" title="Reset to Pending">
+                        <i class="fa fa-undo"></i>
+                    </button>
+                </div>
+            `;
+        }
+    }
+    
+    // Remove row styling and pending border
+    element.className = element.className.replace(/table-\w+/g, '');
+    element.style.border = '';
+}
+
+function showSubmitCancelButtons() {
+    // Remove existing buttons if any
+    hideSubmitCancelButtons();
+    
+    // Create submit/cancel buttons container
+    const buttonsContainer = document.createElement('div');
+    buttonsContainer.id = 'submit-cancel-container';
+    buttonsContainer.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        display: flex;
+        gap: 10px;
+        padding: 15px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        border: 1px solid #ddd;
+    `;
+    
+    // Submit button
+    const submitBtn = document.createElement('button');
+    submitBtn.id = 'submit-changes-btn';
+    submitBtn.innerHTML = '<i class="fa fa-check"></i> Submit Changes';
+    submitBtn.className = 'btn btn-primary';
+    submitBtn.style.cssText = 'min-width: 120px;';
+    submitBtn.onclick = submitChanges;
+    
+    // Cancel button  
+    const cancelBtn = document.createElement('button');
+    cancelBtn.id = 'cancel-changes-btn';
+    cancelBtn.innerHTML = '<i class="fa fa-times"></i> Cancel';
+    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.style.cssText = 'min-width: 120px;';
+    cancelBtn.onclick = cancelChanges;
+    
+    // Add change counter
+    const counter = document.createElement('div');
+    counter.style.cssText = 'display: flex; align-items: center; margin-right: 10px; color: #666; font-size: 14px;';
+    counter.innerHTML = `<i class="fa fa-edit" style="margin-right: 5px;"></i> ${pendingChanges.participants.size} changes`;
+    
+    buttonsContainer.appendChild(counter);
+    buttonsContainer.appendChild(submitBtn);
+    buttonsContainer.appendChild(cancelBtn);
+    
+    document.body.appendChild(buttonsContainer);
+    
+    // Add entrance animation
+    setTimeout(() => {
+        buttonsContainer.style.animation = 'slideInUp 0.3s ease-out';
+    }, 10);
+    
+    // Add CSS animation if not exists
+    if (!document.getElementById('submit-cancel-animations')) {
+        const style = document.createElement('style');
+        style.id = 'submit-cancel-animations';
+        style.textContent = `
+            @keyframes slideInUp {
+                from { transform: translateY(100%); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+            }
+            @keyframes slideOutDown {
+                from { transform: translateY(0); opacity: 1; }
+                to { transform: translateY(100%); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+function hideSubmitCancelButtons() {
+    const container = document.getElementById('submit-cancel-container');
+    if (container) {
+        container.style.animation = 'slideOutDown 0.3s ease-in';
+        setTimeout(() => {
+            if (container.parentNode) {
+                container.parentNode.removeChild(container);
+            }
+        }, 300);
     }
 }
 
@@ -146,27 +355,60 @@ function updateParticipantUI(participantRow, newState) {
         stateCell.textContent = newState;
     }
     
-    // Update the actions column - hide buttons for completed/cancelled/rescheduled
+    // Update the actions column based on new state
     const actionsCell = participantRow.querySelector('td:nth-child(5)'); // Actions column
-    if (actionsCell && newState !== 'not_yet_confirmed') {
-        // Clear all buttons and show state badge
-        const stateBadges = {
-            'confirmed': '<span class="badge badge-success">✅ Completed</span>',
-            'rescheduled': '<span class="badge badge-warning">⟳ Rescheduled</span>',
-            'cancelled': '<span class="badge badge-danger">❌ Cancelled</span>'
-        };
-        actionsCell.innerHTML = stateBadges[newState] || '';
+    const participantId = getParticipantIdFromRow(participantRow);
+    
+    if (actionsCell && participantId) {
+        if (newState === 'not_yet_confirmed') {
+            // Show action buttons for pending participants (with pending indicator)
+            actionsCell.innerHTML = `
+                <button onclick="setParticipantConfirmed(event)" data-id="${participantId}" class="btn btn-success btn-sm" title="Complete">
+                    <i class="fa fa-check"></i>
+                </button>
+                <button onclick="setParticipantRescheduled(event)" data-id="${participantId}" class="btn btn-warning btn-sm" title="Reschedule">
+                    <i class="fa fa-clock-o"></i>
+                </button>
+                <button onclick="setParticipantCancelled(event)" data-id="${participantId}" class="btn btn-danger btn-sm" title="Cancel">
+                    <i class="fa fa-times"></i>
+                </button>
+                <small class="text-info d-block mt-1">(pending reset)</small>
+            `;
+        } else {
+            // Show state badge and reset button for completed/cancelled/rescheduled participants
+            const stateBadges = {
+                'confirmed': '<span class="badge badge-success">✅ Completed <small>(pending)</small></span>',
+                'rescheduled': '<span class="badge badge-warning">⟳ Rescheduled <small>(pending)</small></span>',
+                'cancelled': '<span class="badge badge-danger">❌ Cancelled <small>(pending)</small></span>'
+            };
+            actionsCell.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    ${stateBadges[newState] || ''}
+                    <button onclick="setParticipantReset(event)" data-id="${participantId}" class="btn btn-info btn-sm" title="Reset to Pending">
+                        <i class="fa fa-undo"></i>
+                    </button>
+                </div>
+            `;
+        }
     }
     
-    // Add row styling based on state
+    // Add row styling based on state with pending indicator
     participantRow.className = participantRow.className.replace(/table-\w+/g, '');
-    const rowStyles = {
-        'confirmed': 'table-success',
-        'rescheduled': 'table-warning', 
-        'cancelled': 'table-danger'
-    };
-    if (rowStyles[newState]) {
-        participantRow.classList.add(rowStyles[newState]);
+    
+    if (newState === 'not_yet_confirmed') {
+        // For reset to pending, show neutral styling with pending border
+        participantRow.style.border = '2px dashed rgba(0,123,255,0.5)';
+    } else {
+        const rowStyles = {
+            'confirmed': 'table-success',
+            'rescheduled': 'table-warning', 
+            'cancelled': 'table-danger'
+        };
+        if (rowStyles[newState]) {
+            participantRow.classList.add(rowStyles[newState]);
+            // Add subtle border to indicate pending change
+            participantRow.style.border = '2px dashed rgba(0,0,0,0.3)';
+        }
     }
 }
 

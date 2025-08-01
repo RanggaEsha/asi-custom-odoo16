@@ -67,6 +67,14 @@ class AccountMove(models.Model):
         readonly=True
     )
 
+    is_smart_platform = fields.Boolean(
+        string='Is Smart Platform',
+        related='source_sale_order_id.is_smart_platform',
+        readonly=True,
+        default=False,
+        help='Indicates if this invoice is related to a smart platform service'
+    )
+
     @api.depends('source_sale_order_id')
     def _compute_participant_ids(self):
         """Get participants from linked sale order"""
@@ -96,6 +104,10 @@ class AccountMove(models.Model):
             # Update invoice information (writable fields only)
             if sale_order.payment_term_id:
                 self.invoice_payment_term_id = sale_order.payment_term_id.id
+
+            # update smart platform related fields
+            if sale_order.is_smart_platform:
+                self.is_smart_platform = True
             
             # Update currency and fiscal position (writable fields)
             if sale_order.currency_id:
@@ -118,6 +130,8 @@ class AccountMove(models.Model):
             # Update other sale order related fields (writable fields)
             if sale_order.team_id:
                 self.team_id = sale_order.team_id.id
+
+            # Set user responsible for invoicing
             if sale_order.user_id:
                 self.invoice_user_id = sale_order.user_id.id
             
@@ -159,34 +173,78 @@ class AccountMove(models.Model):
 
     @api.model
     def create(self, vals):
-        """Override to handle sale order linking on creation"""        
+        """Override to handle sale order linking on creation"""
         move = super().create(vals)
-        
-        # Link with sale order if specified and create lines properly
         if move.source_sale_order_id:
-            if move not in move.source_sale_order_id.invoice_ids:
-                move.source_sale_order_id.invoice_ids = [(4, move.id)]
-            
-            # Create proper lines after creation
-            move._sync_invoice_lines_with_sale_order()
-            
-        return move
+            # Link with sale order if specified and create lines properly
+            if move.source_sale_order_id.is_product_participant:
+                if move not in move.source_sale_order_id.invoice_ids:
+                    move.source_sale_order_id.invoice_ids = [(4, move.id)]
+                # Create proper lines after creation
+                move._sync_invoice_lines_with_sale_order()
+            elif move.source_sale_order_id.is_down_payment:
+                # Use Odoo's standard down payment wizard logic
+                wizard_vals = {
+                    'sale_order_ids': [(6, 0, [move.source_sale_order_id.id])],
+                    'advance_payment_method': 'percentage',
+                    'amount': move.source_sale_order_id.down_payment_percentage,
+                }
+                wizard = self.env['sale.advance.payment.inv'].create(wizard_vals)
+                # This will create the invoice and link it to the SO; we want to copy the lines to this move
+                # Find the invoice just created (should be the latest for this SO)
+                created_invoices = wizard._create_invoices(move.source_sale_order_id)
+                if created_invoices:
+                    # Copy lines from the generated invoice to this move
+                    move.invoice_line_ids = [(5, 0, 0)]  # Clear any lines
+                    for line in created_invoices[0].invoice_line_ids:
+                        move.invoice_line_ids = [(0, 0, {
+                            'name': line.name,
+                            'quantity': line.quantity,
+                            'price_unit': line.price_unit,
+                            'product_id': line.product_id.id,
+                            'tax_ids': [(6, 0, line.tax_ids.ids)],
+                            'account_id': line.account_id.id,
+                            'analytic_account_id': line.analytic_account_id.id if line.analytic_account_id else False,
+                        })]
+                    # Optionally, delete the generated invoice to avoid duplicates
+                    created_invoices[0].unlink()
+            return move
 
     def write(self, vals):
         """Override to handle sale order updates"""
         result = super().write(vals)
-        
         # If source_sale_order_id was updated, sync lines
         if 'source_sale_order_id' in vals:
             for move in self:
-                if move.source_sale_order_id and move.state == 'draft':
-                    # Link with sale order
-                    if move not in move.source_sale_order_id.invoice_ids:
-                        move.source_sale_order_id.invoice_ids = [(4, move.id)]
-                    
-                    # Sync lines properly
-                    move._sync_invoice_lines_with_sale_order()
-                
+                if move.source_sale_order_id:
+                    if move.source_sale_order_id.is_product_participant and move.state == 'draft':
+                        # Link with sale order
+                        if move not in move.source_sale_order_id.invoice_ids:
+                            move.source_sale_order_id.invoice_ids = [(4, move.id)]
+                        # Sync lines properly
+                        move._sync_invoice_lines_with_sale_order()
+                    elif move.source_sale_order_id.is_down_payment and move.state == 'draft':
+                        # Use Odoo's standard down payment wizard logic
+                        wizard_vals = {
+                            'sale_order_ids': [(6, 0, [move.source_sale_order_id.id])],
+                            'advance_payment_method': 'percentage',
+                            'amount': move.source_sale_order_id.down_payment_percentage,
+                        }
+                        wizard = self.env['sale.advance.payment.inv'].create(wizard_vals)
+                        created_invoices = wizard._create_invoices(move.source_sale_order_id)
+                        if created_invoices:
+                            move.invoice_line_ids = [(5, 0, 0)]
+                            for line in created_invoices[0].invoice_line_ids:
+                                move.invoice_line_ids = [(0, 0, {
+                                    'name': line.name,
+                                    'quantity': line.quantity,
+                                    'price_unit': line.price_unit,
+                                    'product_id': line.product_id.id,
+                                    'tax_ids': [(6, 0, line.tax_ids.ids)],
+                                    'account_id': line.account_id.id,
+                                    'analytic_account_id': line.analytic_account_id.id if line.analytic_account_id else False,
+                                })]
+                            created_invoices[0].unlink()
         return result
 
     def _sync_invoice_lines_with_sale_order(self):
@@ -201,57 +259,61 @@ class AccountMove(models.Model):
         sale_order = self.source_sale_order_id
         lines_data = []
         
-        for line in sale_order.order_line:
-            if line.display_type:
-                continue  # skip section/note lines
+        if sale_order.is_product_participant:
+            for line in sale_order.order_line:
+                if line.display_type:
+                    continue  # skip section/note lines
+                    
+                # Calculate quantity to invoice (incremental - not total delivered)
+                if line.qty_delivered_method == 'participants':
+                    # For participants: delivered - already invoiced
+                    total_delivered = line.completed_participants_count
+                    already_invoiced = self._get_already_invoiced_qty(line)
+                    qty_to_invoice = total_delivered - already_invoiced
+                else:
+                    # For regular delivery: delivered - already invoiced  
+                    total_delivered = line.qty_delivered if line.qty_delivered > 0 else line.product_uom_qty
+                    already_invoiced = self._get_already_invoiced_qty(line)
+                    qty_to_invoice = total_delivered - already_invoiced
+                    
+                if qty_to_invoice <= 0:
+                    continue
+                    
+                # Create line data
+                line_vals = {
+                    'move_id': self.id,
+                    'product_id': line.product_id.id,
+                    'name': line.name,
+                    'quantity': qty_to_invoice,
+                    'product_uom_id': line.product_uom.id,
+                    'price_unit': line.price_unit,
+                    'discount': line.discount,
+                    'tax_ids': [(6, 0, line.tax_id.ids)],
+                    'sequence': line.sequence,
+                    'sale_line_ids': [(6, 0, [line.id])],
+                }
                 
-            # Calculate quantity to invoice (incremental - not total delivered)
-            if line.qty_delivered_method == 'participants':
-                # For participants: delivered - already invoiced
-                total_delivered = line.completed_participants_count
-                already_invoiced = self._get_already_invoiced_qty(line)
-                qty_to_invoice = total_delivered - already_invoiced
-            else:
-                # For regular delivery: delivered - already invoiced  
-                total_delivered = line.qty_delivered if line.qty_delivered > 0 else line.product_uom_qty
-                already_invoiced = self._get_already_invoiced_qty(line)
-                qty_to_invoice = total_delivered - already_invoiced
+                # Add analytic distribution if present
+                if line.analytic_distribution:
+                    line_vals['analytic_distribution'] = line.analytic_distribution
+                    
+                # Add participant note if using participant delivery method
+                if line.qty_delivered_method == 'participants':
+                    participant_note = _('\nParticipants completed: %d/%d (invoicing: %d)') % (
+                        line.completed_participants_count, 
+                        line.participants_count,
+                        qty_to_invoice
+                    )
+                    line_vals['name'] += participant_note
                 
-            if qty_to_invoice <= 0:
-                continue
-                
-            # Create line data
-            line_vals = {
-                'move_id': self.id,
-                'product_id': line.product_id.id,
-                'name': line.name,
-                'quantity': qty_to_invoice,
-                'product_uom_id': line.product_uom.id,
-                'price_unit': line.price_unit,
-                'discount': line.discount,
-                'tax_ids': [(6, 0, line.tax_id.ids)],
-                'sequence': line.sequence,
-                'sale_line_ids': [(6, 0, [line.id])],
-            }
+                lines_data.append(line_vals)
             
-            # Add analytic distribution if present
-            if line.analytic_distribution:
-                line_vals['analytic_distribution'] = line.analytic_distribution
-                
-            # Add participant note if using participant delivery method
-            if line.qty_delivered_method == 'participants':
-                participant_note = _('\nParticipants completed: %d/%d (invoicing: %d)') % (
-                    line.completed_participants_count, 
-                    line.participants_count,
-                    qty_to_invoice
-                )
-                line_vals['name'] += participant_note
-            
-            lines_data.append(line_vals)
-        
-        # Create all lines at once
-        if lines_data:
-            self.env['account.move.line'].create(lines_data)
+            # Create all lines at once
+            if lines_data:
+                self.env['account.move.line'].create(lines_data)
+        else:
+            # For non-participant orders, just create standard lines
+            return
 
     def _get_already_invoiced_qty(self, sale_line):
         """Calculate how much quantity has already been invoiced for this sale order line"""

@@ -57,8 +57,7 @@ Technical Details:
         'sale_project', 
         'sale_management',
         'base_import',
-        'peepl_participant',  # Assuming this is the existing participant module
-        # 'peepl_crm',  # Assuming this is the existing CRM module
+        'peepl_participant',
         'crm',
     ],
     'data': [
@@ -73,6 +72,7 @@ Technical Details:
         'views/project_task_participant_views.xml',
         'views/sale_order_closure.xml',
         'views/account_move.xml',
+        'views/product_template.xml',
     ],
     'assets': {
         'web.assets_backend': [

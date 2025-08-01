@@ -33,6 +33,11 @@ class ProductTemplate(models.Model):
         ondelete={'participants': 'set null'}
     )
 
+    is_smart_platform = fields.Boolean(
+        string='Smart Platform Product',
+        help='Indicates if this product is a smart platform service'
+    )
+
     def _get_service_to_general_map(self):
         """Override to include participant mapping"""
         mapping = super()._get_service_to_general_map()

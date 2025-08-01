@@ -33,6 +33,59 @@ class CrmLead(models.Model):
 
 
 class SaleOrder(models.Model):
+    _inherit = 'sale.order'
+
+    is_down_payment = fields.Boolean(
+        string='Is Down Payment',
+        store=True,
+        help='Indicates if this order is a down payment for a project'
+    )
+
+    down_payment_percentage = fields.Float(
+        string='Down Payment Percentage',
+        digits='Discount',
+        help='Percentage of the total amount to be paid as down payment'
+    )
+
+    is_smart_platform = fields.Boolean(
+        string='Is Smart Platform',
+        compute='_compute_is_smart_platform',
+        store=True,
+        help='Indicates if this sale order is related to a smart platform service'
+    )
+
+    @api.depends('order_line.product_id.is_smart_platform')
+    def _compute_is_smart_platform(self):
+        """Compute if this sale order is related to a smart platform service"""
+        for order in self:
+            order.is_smart_platform = any(
+                line.product_id.is_smart_platform for line in order.order_line
+            )
+
+    # hand over (creating project from sale order) by showing project creation wizard
+    def action_create_project(self):
+        """Override to handle project creation from sale order"""
+        self.ensure_one()
+        if not self.is_down_payment:
+            raise UserError(_('This sale order is not a down payment.'))
+        
+        # Prepare context for project creation
+        context = {
+            'default_sale_order_id': self.id,
+            'default_is_down_payment': self.is_down_payment,
+            'default_down_payment_percentage': self.down_payment_percentage,
+            'default_partner_id': self.partner_id.id,
+        }
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Create Project'),
+            'res_model': 'project.project',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': context,
+        }
+
 
     def action_show_closed_info(self):
         """Show a notification that the sale is closed."""
@@ -47,7 +100,6 @@ class SaleOrder(models.Model):
                 'sticky': False,
             }
         }
-    _inherit = 'sale.order'
 
     is_product_participant = fields.Boolean(
         string='Has Participant Products',

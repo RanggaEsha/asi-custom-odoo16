@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <templates xml:space="preserve">
-    <!-- Full replacement: Custom right side panel without Sales and Profitability sections -->
+    <!-- SIMPLE DEBUG VERSION: Basic debugging without complex JS -->
     <t t-name="project.ProjectRightSidePanel" owl="1">
         <div t-if="projectId" class="o_rightpanel pt-0 bg-view border-start overflow-auto">
+            
             <ProjectRightSidePanelSection
                 name="'stat_buttons'"
                 header="false"
-                show="!!state.data.buttons"
+                show="!!(state &amp;&amp; state.data &amp;&amp; state.data.buttons)"
             >
                 <div class="o_form_view">
                     <div class="oe_button_box o-form-buttonbox d-flex flex-wrap">
@@ -15,7 +16,7 @@
                                 t-if="button.show and button.action !== 'action_view_sos'"
                                 defaultRank="'oe_stat_button'"
                                 className="'h-auto py-2 border border-start-0 border-top-0 text-start'"
-                                icon="`fa-${button.icon}`"
+                                icon="'fa-' + button.icon"
                                 title="button.text"
                                 clickParams="_getStatButtonClickParams(button)"
                                 record="_getStatButtonRecordParams()"
@@ -35,15 +36,17 @@
                     </div>
                 </div>
             </ProjectRightSidePanelSection>
-            <!-- Participants section -->
+            
+            <!-- Participants section - Fixed condition -->
             <ProjectRightSidePanelSection
                 name="'participants'"
-                show="state &amp;&amp; state.data &amp;&amp; state.data.participants &amp;&amp; state.data.participants.total &gt; 0"
+                show="!!(state &amp;&amp; state.data &amp;&amp; state.data.participants &amp;&amp; state.data.participants.total &gt; 0)"
             >
                 <t t-set-slot="title" owl="1">
                     Participants
                 </t>
-                <t t-if="state &amp;&amp; state.data &amp;&amp; state.data.participants">
+                
+                <t t-if="state &amp;&amp; state.data &amp;&amp; state.data.participants &amp;&amp; state.data.participants.data">
                     <button
                         t-if="state.data.participants.pending &gt; 0"
                         onclick="markAllParticipantsCompleted(event)"
@@ -69,24 +72,35 @@
                                 <td><t t-esc="p.mobile_phone"/></td>
                                 <td><t t-esc="p.state"/></td>
                                 <td>
-                                    <button t-if="p.state === 'not_yet_confirmed'" onclick="setParticipantConfirmed(event)" t-att-data-id="p.id" class="btn btn-success btn-sm" title="Complete">
-                                        <i class="fa fa-check"/>
-                                    </button>
-                                    <button t-if="p.state === 'not_yet_confirmed'" onclick="setParticipantRescheduled(event)" t-att-data-id="p.id" class="btn btn-warning btn-sm" title="Reschedule">
-                                        <i class="fa fa-clock-o"/>
-                                    </button>
-                                    <button t-if="p.state === 'not_yet_confirmed'" onclick="setParticipantCancelled(event)" t-att-data-id="p.id" class="btn btn-danger btn-sm" title="Cancel">
-                                        <i class="fa fa-times"/>
-                                    </button>
+                                    <div t-if="p.state === 'not_yet_confirmed'">
+                                        <button onclick="setParticipantConfirmed(event)" t-att-data-id="p.id" class="btn btn-success btn-sm" title="Complete">
+                                            <i class="fa fa-check"/>
+                                        </button>
+                                        <button onclick="setParticipantRescheduled(event)" t-att-data-id="p.id" class="btn btn-warning btn-sm" title="Reschedule">
+                                            <i class="fa fa-clock-o"/>
+                                        </button>
+                                        <button onclick="setParticipantCancelled(event)" t-att-data-id="p.id" class="btn btn-danger btn-sm" title="Cancel">
+                                            <i class="fa fa-times"/>
+                                        </button>
+                                    </div>
+                                    <div t-if="p.state !== 'not_yet_confirmed'" class="d-flex align-items-center" style="gap: 8px;">
+                                        <span t-if="p.state === 'confirmed'" class="badge badge-success">✅ Completed</span>
+                                        <span t-if="p.state === 'rescheduled'" class="badge badge-warning">⟳ Rescheduled</span>
+                                        <span t-if="p.state === 'cancelled'" class="badge badge-danger">❌ Cancelled</span>
+                                        <button onclick="setParticipantReset(event)" t-att-data-id="p.id" class="btn btn-info btn-sm" title="Reset to Pending">
+                                            <i class="fa fa-undo"/>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         </tbody>
                     </table>
                 </t>
             </ProjectRightSidePanelSection>
+            
             <ProjectRightSidePanelSection
                 name="'milestones'"
-                show="!!state.data.milestones &amp;&amp; !!state.data.milestones.data"
+                show="!!(state &amp;&amp; state.data &amp;&amp; state.data.milestones &amp;&amp; state.data.milestones.data)"
             >
                 <t t-set-slot="header" owl="1">
                     <span class="btn btn-secondary">
@@ -106,7 +120,6 @@
                 </span>
             </ProjectRightSidePanelSection>
         </div>
-        <!-- If this is called from notif, multiples updates but no specific project -->
         <div t-else=""/>
     </t>
 </templates>

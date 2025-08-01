@@ -30,6 +30,14 @@
                     <field name="is_product_participant" invisible="1"/>
                 </xpath>
 
+                <!-- down payment fields -->
+                <xpath expr="//field[@name='payment_term_id']" position="after">
+                    <field name="is_down_payment"/>
+                    <field name="down_payment_percentage" 
+                           attrs="{'invisible': [('is_down_payment', '=', False)]}"
+                           string="Down Payment Percentage"/>
+                </xpath>
+
                 <xpath expr="//button[@name='action_view_invoice']" position="attributes">
                     <attribute name="attrs">{'invisible': True}</attribute>
                 </xpath>

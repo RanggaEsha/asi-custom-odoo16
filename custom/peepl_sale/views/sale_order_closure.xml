@@ -67,6 +67,16 @@
                             title="Send BAST to customer"
                             attrs="{'invisible': [('state', '!=', 'closed')]}"
                             icon="fa-paper-plane"/>
+
+                    <!-- button hand over to create project -->
+                    <field name="is_smart_platform" invisible="1"/>
+                    <button name="action_create_project" 
+                            type="object" 
+                            string="Hand Over" 
+                            class="btn-primary"
+                            title="Create project from this order"
+                            attrs="{'invisible': [('state', '!=', 'sale'), ('is_smart_platform', '=', False)]}"
+                            icon="fa-project-diagram"/>
                 </xpath>
 
                 <!-- make invisible create invoice button all time -->

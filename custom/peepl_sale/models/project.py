@@ -133,7 +133,8 @@ class Project(models.Model):
         """Override to include participant data in project panel"""
         panel_data = super().get_panel_data()
         
-        if self.is_participant_based:
+        # FIXED: Always include participants data if participants exist, regardless of is_participant_based
+        if self.participant_count > 0:
             panel_data.update({
                 'participants': self._get_participants_data(),
             })
